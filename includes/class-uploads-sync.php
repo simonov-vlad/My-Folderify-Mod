@@ -583,7 +583,9 @@ class Uploads_Sync
                 case 'file':
                     $id = $this->register_file($task['f']);
                     if (is_wp_error($id)) {
-                        $job['done']['errors'][] = $task['f'] . ': ' . $id->get_error_message();
+                        $detail = $id->get_error_data();
+                        $job['done']['errors'][] = $task['f'] . ': ' . $id->get_error_message()
+                            . (is_string($detail) && $detail !== '' ? ' [' . $detail . ']' : '');
                         break;
                     }
                     $job['done']['registered']++;
@@ -725,6 +727,25 @@ class Uploads_Sync
     }
 
     /**
+     * Value for the attachment `guid` column.
+     *
+     * The column is varchar(255). The address is stored as plain text (like WordPress itself does
+     * after an upload) because URL-encoding turns every Cyrillic letter into 6 characters, which
+     * pushes long Russian file names over the limit and makes the database reject the row.
+     * If it is still too long it is shortened; guid only has to stay unique, it is not used to
+     * build links.
+     */
+    private function build_guid($baseurl, $rel)
+    {
+        $prefix = trailingslashit($baseurl);
+        $guid = $prefix . $rel;
+        if (mb_strlen($guid) <= 250) {
+            return $guid;
+        }
+        return mb_substr($prefix . wp_basename($rel), 0, 200) . '#' . md5($rel);
+    }
+
+    /**
      * Add a file found in uploads to the Media Library.
      *
      * @param string $rel Relative path inside uploads.
@@ -748,7 +769,7 @@ class Uploads_Sync
         $title = trim(preg_replace('/[-_]+/', ' ', $title));
 
         $attachment = [
-            'guid' => trailingslashit($uploads['baseurl']) . str_replace('%2F', '/', rawurlencode($rel)),
+            'guid' => $this->build_guid($uploads['baseurl'], $rel),
             'post_mime_type' => $filetype['type'],
             'post_title' => sanitize_text_field($title),
             'post_content' => '',
