@@ -53,66 +53,81 @@
                 });
 
                 // ── Uploads sync (scan / apply) ─────────────────
-                var syncI18n = {
-                    working: '<?php echo esc_js(__('Analyzing…', 'folderify')); ?>',
+                var T = {
+                    analyzing: '<?php echo esc_js(__('Scanning uploads and analyzing files and folders…', 'folderify')); ?>',
+                    analyzed: '<?php echo esc_js(__('Analysis complete', 'folderify')); ?>',
+                    syncDone: '<?php echo esc_js(__('Sync complete', 'folderify')); ?>',
+                    syncing: '<?php echo esc_js(__('Syncing…', 'folderify')); ?>',
                     failed: '<?php echo esc_js(__('Request failed. Please try again.', 'folderify')); ?>',
-                    insync: '<?php echo esc_js(__('Everything is already in sync. Nothing to do.', 'folderify')); ?>',
+                    insync: '<?php echo esc_js(__('Everything is already in sync. Nothing to add.', 'folderify')); ?>',
                     start: '<?php echo esc_js(__('Start sync', 'folderify')); ?>',
                     cancel: '<?php echo esc_js(__('Cancel', 'folderify')); ?>',
-                    running: '<?php echo esc_js(__('Syncing…', 'folderify')); ?>',
-                    finished: '<?php echo esc_js(__('Done.', 'folderify')); ?>',
+                    scannedAt: '<?php echo esc_js(__('Finished at', 'folderify')); ?>',
+                    found: '<?php echo esc_js(__('Found in uploads', 'folderify')); ?>',
+                    foldersWord: '<?php echo esc_js(__('folders', 'folderify')); ?>',
+                    filesWord: '<?php echo esc_js(__('files', 'folderify')); ?>',
+                    inLibrary: '<?php echo esc_js(__('already in the Media Library', 'folderify')); ?>',
+                    skippedGen: '<?php echo esc_js(__('thumbnails / generated sizes (ignored)', 'folderify')); ?>',
+                    skippedType: '<?php echo esc_js(__('files of unsupported types (ignored)', 'folderify')); ?>',
+                    willAdd: '<?php echo esc_js(__('To do', 'folderify')); ?>',
                     newFiles: '<?php echo esc_js(__('new files to add to the Media Library', 'folderify')); ?>',
                     newFolders: '<?php echo esc_js(__('new folders to create', 'folderify')); ?>',
                     linkFiles: '<?php echo esc_js(__('existing files to link to folders', 'folderify')); ?>',
                     toMove: '<?php echo esc_js(__('files to move into their folder directories', 'folderify')); ?>',
-                    folders: '<?php echo esc_js(__('folder directories to check', 'folderify')); ?>',
-                    registered: '<?php echo esc_js(__('files added', 'folderify')); ?>',
+                    dirsCheck: '<?php echo esc_js(__('folder directories to check', 'folderify')); ?>',
+                    registered: '<?php echo esc_js(__('files added to the Media Library', 'folderify')); ?>',
                     createdFolders: '<?php echo esc_js(__('folders created', 'folderify')); ?>',
-                    linked: '<?php echo esc_js(__('files linked', 'folderify')); ?>',
+                    linked: '<?php echo esc_js(__('files linked to folders', 'folderify')); ?>',
                     moved: '<?php echo esc_js(__('files moved', 'folderify')); ?>',
-                    errors: '<?php echo esc_js(__('errors', 'folderify')); ?>'
+                    errors: '<?php echo esc_js(__('errors', 'folderify')); ?>',
+                    openMedia: '<?php echo esc_js(__('Open Media Library', 'folderify')); ?>',
+                    mediaUrl: '<?php echo esc_js(admin_url('upload.php')); ?>'
                 };
 
-                function syncEsc(s) { return $('<div>').text(s).html(); }
+                function esc(s) { return $('<div>').text(String(s)).html(); }
 
-                function syncMessage($res, kind, html) {
-                    $res.removeClass('ok err').addClass(kind || '').html(html).show();
+                function box($res, kind, inner) {
+                    $res.removeClass('ok err busy').addClass(kind || '').html(inner).show();
                 }
 
-                function syncDoneText(d) {
-                    var parts = [];
-                    if (d.registered) parts.push(d.registered + ' ' + syncI18n.registered);
-                    if (d.folders) parts.push(d.folders + ' ' + syncI18n.createdFolders);
-                    if (d.linked) parts.push(d.linked + ' ' + syncI18n.linked);
-                    if (d.moved) parts.push(d.moved + ' ' + syncI18n.moved);
-                    if (d.errors && d.errors.length) parts.push(d.errors.length + ' ' + syncI18n.errors);
-                    return parts.join(' · ');
+                function head(kind, title, time) {
+                    var icon = kind === 'busy' ? '<span class="folderify-spinner"></span>' : (kind === 'err' ? '<span class="folderify-sync-icon">!</span>' : '<span class="folderify-sync-icon">✓</span>');
+                    return '<div class="folderify-sync-head">' + icon + '<strong>' + esc(title) + '</strong>'
+                        + (time ? '<span class="folderify-sync-time">' + esc(T.scannedAt) + ' ' + esc(time) + '</span>' : '') + '</div>';
                 }
 
-                function syncRunSteps($card, $res, mode) {
-                    var html = '<div class="folderify-sync-bar"><span style="width:0%"></span></div>'
-                        + '<div class="folderify-sync-line">' + syncI18n.running + '</div>';
-                    syncMessage($res, '', html);
+                function li(n, text) { return n ? '<li><strong>' + n + '</strong> ' + esc(text) + '</li>' : ''; }
+
+                function doneList(d) {
+                    var h = '<ul class="folderify-sync-list">'
+                        + li(d.registered, T.registered) + li(d.folders, T.createdFolders)
+                        + li(d.linked, T.linked) + li(d.moved, T.moved) + '</ul>';
+                    if (d.errors && d.errors.length) {
+                        h += '<details class="folderify-sync-errors" open><summary>' + d.errors.length + ' ' + esc(T.errors) + '</summary><ul>';
+                        $.each(d.errors, function (i, e) { h += '<li>' + esc(e) + '</li>'; });
+                        h += '</ul></details>';
+                    }
+                    return h;
+                }
+
+                function runSteps($res, mode) {
+                    box($res, 'busy', head('busy', T.syncing)
+                        + '<div class="folderify-sync-bar"><span style="width:0%"></span></div>'
+                        + '<div class="folderify-sync-line">0%</div>');
 
                     (function step() {
                         $.post(ajaxUrl, { action: 'folderify_sync_step', nonce: nonce }, function (r) {
-                            if (!r.success) {
-                                syncMessage($res, 'err', '✗ ' + syncEsc(r.data));
-                                return;
-                            }
+                            if (!r.success) { box($res, 'err', head('err', T.failed) + '<div>' + esc(r.data) + '</div>'); return; }
                             var d = r.data, pct = d.total ? Math.round(d.processed / d.total * 100) : 100;
                             $res.find('.folderify-sync-bar span').css('width', pct + '%');
-                            $res.find('.folderify-sync-line').text(pct + '% (' + d.processed + ' / ' + d.total + ') — ' + syncDoneText(d.done));
+                            $res.find('.folderify-sync-line').text(pct + '%  (' + d.processed + ' / ' + d.total + ')');
                             if (!d.finished) { step(); return; }
 
-                            var out = '✓ ' + syncI18n.finished + ' ' + syncEsc(syncDoneText(d.done));
-                            if (d.done.errors && d.done.errors.length) {
-                                out += '<details style="margin-top:8px;"><summary>' + d.done.errors.length + ' ' + syncI18n.errors + '</summary><ul style="margin:6px 0 0 18px;list-style:disc;">';
-                                $.each(d.done.errors, function (i, e) { out += '<li>' + syncEsc(e) + '</li>'; });
-                                out += '</ul></details>';
-                            }
-                            syncMessage($res, d.done.errors && d.done.errors.length ? 'err' : 'ok', out);
-                        }).fail(function () { syncMessage($res, 'err', syncI18n.failed); });
+                            var hasErr = d.done.errors && d.done.errors.length;
+                            var extra = (mode === 'scan' && d.done.registered)
+                                ? '<p><a class="button" href="' + esc(T.mediaUrl) + '">' + esc(T.openMedia) + '</a></p>' : '';
+                            box($res, hasErr ? 'err' : 'ok', head(hasErr ? 'err' : 'ok', T.syncDone, d.time) + doneList(d.done) + extra);
+                        }).fail(function () { box($res, 'err', head('err', T.failed)); });
                     })();
                 }
 
@@ -120,7 +135,7 @@
                     var $btn = $(this), mode = $btn.data('mode');
                     var $card = $btn.closest('.folderify-card'), $res = $card.find('.folderify-sync-result');
                     $btn.prop('disabled', true);
-                    syncMessage($res, '', syncI18n.working);
+                    box($res, 'busy', head('busy', T.analyzing));
 
                     $.post(ajaxUrl, {
                         action: 'folderify_sync_start',
@@ -131,35 +146,40 @@
                             ? ($card.find('.folderify-sync-replace-urls').is(':checked') ? 1 : 0) : 1
                     }, function (r) {
                         $btn.prop('disabled', false);
-                        if (!r.success) { syncMessage($res, 'err', '✗ ' + syncEsc(r.data)); return; }
+                        if (!r.success) { box($res, 'err', head('err', T.failed) + '<div>' + esc(r.data) + '</div>'); return; }
 
-                        var s = r.data.summary, lines = [];
+                        var s = r.data.summary, found = '', todo = '';
                         if (mode === 'scan') {
-                            if (s.new_files) lines.push('<strong>' + s.new_files + '</strong> ' + syncI18n.newFiles);
-                            if (s.new_folders) lines.push('<strong>' + s.new_folders + '</strong> ' + syncI18n.newFolders);
-                            if (s.link_files) lines.push('<strong>' + s.link_files + '</strong> ' + syncI18n.linkFiles);
+                            found = '<p class="folderify-sync-sub">' + esc(T.found) + ': <strong>' + s.dirs_found + '</strong> ' + esc(T.foldersWord)
+                                + ', <strong>' + s.files_found + '</strong> ' + esc(T.filesWord) + '</p>'
+                                + '<ul class="folderify-sync-list muted">' + li(s.already_in_library, T.inLibrary)
+                                + li(s.skipped_generated, T.skippedGen) + li(s.skipped_unsupported, T.skippedType) + '</ul>';
+                            todo = li(s.new_files, T.newFiles) + li(s.new_folders, T.newFolders) + li(s.link_files, T.linkFiles);
                         } else {
-                            if (s.folders) lines.push('<strong>' + s.folders + '</strong> ' + syncI18n.folders);
-                            if (s.to_move) lines.push('<strong>' + s.to_move + '</strong> ' + syncI18n.toMove);
+                            todo = li(s.folders, T.dirsCheck) + li(s.to_move, T.toMove);
                         }
 
-                        var nothing = (mode === 'scan') ? (!s.new_files && !s.new_folders && !s.link_files) : !s.to_move && !s.folders;
-                        if (nothing || !r.data.total) { syncMessage($res, 'ok', syncI18n.insync); return; }
-
-                        var html = '<ul style="margin:0 0 10px 18px;list-style:disc;"><li>' + lines.join('</li><li>') + '</li></ul>'
-                            + '<button type="button" class="button button-primary folderify-sync-go">' + syncI18n.start + '</button> '
-                            + '<button type="button" class="button folderify-sync-cancel">' + syncI18n.cancel + '</button>';
-                        syncMessage($res, '', html);
+                        var nothing = !r.data.total || !todo;
+                        var html = head('ok', T.analyzed, r.data.time) + found;
+                        if (nothing) {
+                            html += '<p class="folderify-sync-nothing">' + esc(T.insync) + '</p>';
+                        } else {
+                            html += '<p class="folderify-sync-sub">' + esc(T.willAdd) + ':</p><ul class="folderify-sync-list">' + todo + '</ul>'
+                                + '<p><button type="button" class="button button-primary folderify-sync-go">' + esc(T.start) + '</button> '
+                                + '<button type="button" class="button folderify-sync-cancel">' + esc(T.cancel) + '</button></p>';
+                        }
+                        box($res, 'ok', html);
                         $res.data('mode', mode);
-                    }).fail(function () {
+                    }).fail(function (xhr) {
                         $btn.prop('disabled', false);
-                        syncMessage($res, 'err', syncI18n.failed);
+                        var hint = xhr && xhr.status ? ' (HTTP ' + xhr.status + ')' : '';
+                        box($res, 'err', head('err', T.failed + hint));
                     });
                 });
 
                 $(document).on('click', '.folderify-sync-go', function () {
-                    var $card = $(this).closest('.folderify-card'), $res = $card.find('.folderify-sync-result');
-                    syncRunSteps($card, $res, $res.data('mode'));
+                    var $res = $(this).closest('.folderify-sync-result');
+                    runSteps($res, $res.data('mode'));
                 });
 
                 $(document).on('click', '.folderify-sync-cancel', function () {

@@ -30,9 +30,11 @@ class Settings
         // CSS
         wp_enqueue_style('folderify-settings', FOLDERIFY_URL . 'assets/css/settings.css', [], FOLDERIFY_VERSION);
 
-        // JS
-        wp_enqueue_script('folderify-settings', '', ['jquery'], FOLDERIFY_VERSION, true);
-        
+        // JS: a virtual handle (src = false). With an empty string WordPress never registers
+        // the handle, and wp_add_inline_script() silently prints nothing.
+        wp_register_script('folderify-settings', false, ['jquery'], FOLDERIFY_VERSION, true);
+        wp_enqueue_script('folderify-settings');
+
         ob_start();
         $nonce_val = wp_create_nonce('folderify_ajax');
         $ajax_url = esc_url(admin_url('admin-ajax.php'));
@@ -534,7 +536,19 @@ class Settings
                                     <?php esc_html_e('Scan uploads', 'folderify'); ?>
                                 </button>
                             </div>
-                            <div class="folderify-sync-result" style="display:none;"></div>
+                            <?php $last_scan = Uploads_Sync::last_sync('scan'); ?>
+                            <div class="folderify-sync-result<?php echo $last_scan ? ' ok' : ''; ?>" <?php echo $last_scan ? '' : 'style="display:none;"'; ?>>
+                                <?php if ($last_scan): $d = $last_scan['done']; ?>
+                                    <div class="folderify-sync-head"><span class="folderify-sync-icon">✓</span>
+                                        <strong><?php esc_html_e('Last sync completed', 'folderify'); ?></strong>
+                                        <span class="folderify-sync-time"><?php echo esc_html(Uploads_Sync::format_time($last_scan['time'])); ?></span></div>
+                                    <ul class="folderify-sync-list">
+                                        <li><strong><?php echo (int) $d['registered']; ?></strong> <?php esc_html_e('files added to the Media Library', 'folderify'); ?></li>
+                                        <li><strong><?php echo (int) $d['folders']; ?></strong> <?php esc_html_e('folders created', 'folderify'); ?></li>
+                                        <li><strong><?php echo (int) $d['linked']; ?></strong> <?php esc_html_e('files linked to folders', 'folderify'); ?></li>
+                                    </ul>
+                                <?php endif; ?>
+                            </div>
                         </div>
                     </div>
 

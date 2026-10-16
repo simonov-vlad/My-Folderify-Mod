@@ -69,6 +69,43 @@ class Uploads_Sync
         return self::JOB_KEY . get_current_user_id();
     }
 
+    private function tasks_key()
+    {
+        return 'folderify_sync_tasks_' . get_current_user_id();
+    }
+
+    /**
+     * The task list can be huge (every file in uploads), so it is kept out of the transient:
+     * stored once, compressed, in a non-autoloaded option.
+     */
+    private function save_tasks(array $tasks)
+    {
+        $json = wp_json_encode($tasks);
+        if (function_exists('gzcompress')) {
+            $json = 'gz:' . base64_encode(gzcompress($json, 6)); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+        }
+        update_option($this->tasks_key(), $json, false);
+    }
+
+    private function load_tasks()
+    {
+        $raw = get_option($this->tasks_key(), '');
+        if (!is_string($raw) || $raw === '') {
+            return [];
+        }
+        if (strpos($raw, 'gz:') === 0) {
+            $raw = function_exists('gzuncompress') ? @gzuncompress(base64_decode(substr($raw, 3))) : ''; // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode
+        }
+        $tasks = json_decode((string) $raw, true);
+        return is_array($tasks) ? $tasks : [];
+    }
+
+    private function clear_job()
+    {
+        delete_transient($this->job_key());
+        delete_option($this->tasks_key());
+    }
+
     /**
      * Start: analyse and build the task list. Does not change anything yet when preview=1.
      */
@@ -93,18 +130,32 @@ class Uploads_Sync
             wp_send_json_error($job->get_error_message());
         }
 
+        $tasks = $job['tasks'];
+        unset($job['tasks']);
+        $this->save_tasks($tasks);
+
         $job['mode'] = $mode;
         $job['opts'] = $opts;
         $job['pos'] = 0;
+        $job['total'] = count($tasks);
         $job['done'] = [
             'registered' => 0, 'linked' => 0, 'folders' => 0, 'moved' => 0, 'skipped' => 0, 'errors' => [],
         ];
         set_transient($this->job_key(), $job, HOUR_IN_SECONDS);
 
+        // Remember that the analysis itself finished (shown on the admin screen).
+        update_option('folderify_last_analysis', [
+            'mode' => $mode,
+            'time' => time(),
+            'summary' => $job['summary'],
+            'total' => count($tasks),
+        ], false);
+
         wp_send_json_success([
             'mode' => $mode,
-            'total' => count($job['tasks']),
+            'total' => count($tasks),
             'summary' => $job['summary'],
+            'time' => $this->format_time(time()),
         ]);
     }
 
@@ -116,28 +167,39 @@ class Uploads_Sync
         $this->guard();
 
         $job = get_transient($this->job_key());
-        if (!$job || empty($job['tasks'])) {
+        $tasks = $job ? $this->load_tasks() : [];
+        if (!$job || empty($tasks)) {
             wp_send_json_error(__('Nothing to do. Run the scan first.', 'folderify'));
         }
 
         $started = microtime(true);
-        $total = count($job['tasks']);
+        $total = count($tasks);
         $max_per_batch = ($job['mode'] === 'scan') ? 25 : 40;
         $n = 0;
 
         $this->storage->reset_cache();
 
         while ($job['pos'] < $total && $n < $max_per_batch && (microtime(true) - $started) < self::BATCH_SECONDS) {
-            $task = $job['tasks'][$job['pos']];
+            $task = $tasks[$job['pos']];
             $this->run_task($task, $job);
             $job['pos']++;
             $n++;
         }
 
         $finished = ($job['pos'] >= $total);
+        $finished_at = '';
         if ($finished) {
-            delete_transient($this->job_key());
+            $this->clear_job();
             $this->folders->invalidate_cache();
+
+            // Persist the result so the screen can show "last sync" after a reload.
+            update_option('folderify_last_sync', [
+                'mode' => $job['mode'],
+                'time' => time(),
+                'done' => $job['done'],
+                'total' => $total,
+            ], false);
+            $finished_at = $this->format_time(time());
         } else {
             set_transient($this->job_key(), $job, HOUR_IN_SECONDS);
         }
@@ -147,13 +209,37 @@ class Uploads_Sync
             'processed' => $job['pos'],
             'total' => $total,
             'done' => $job['done'],
+            'mode' => $job['mode'],
+            'time' => $finished_at,
         ]);
+    }
+
+    /**
+     * Human readable time in the site's timezone.
+     */
+    public static function format_time($timestamp)
+    {
+        return wp_date(get_option('date_format') . ' ' . get_option('time_format'), (int) $timestamp);
+    }
+
+    /**
+     * Result of the last finished sync for a mode (for the settings screen).
+     *
+     * @return array|null
+     */
+    public static function last_sync($mode)
+    {
+        $data = get_option('folderify_last_sync');
+        if (is_array($data) && ($data['mode'] ?? '') === $mode) {
+            return $data;
+        }
+        return null;
     }
 
     public function ajax_cancel()
     {
         $this->guard();
-        delete_transient($this->job_key());
+        $this->clear_job();
         wp_send_json_success();
     }
 
@@ -301,14 +387,22 @@ class Uploads_Sync
         $new_files = 0;
         $link_files = 0;
         $folder_dirs = [];
+        $stats = ['known' => 0, 'generated' => 0, 'unsupported' => 0, 'system' => 0];
 
-        // Directories that become folders.
+        $existing_folder_paths = $this->existing_folder_paths();
+        $linked_ids = $this->linked_attachment_ids();
+        $new_folders = 0;
+
+        // Directories that become folders (a task only for those that have no folder yet).
         foreach ($walk['dirs'] as $dir) {
             if ($this->skip_dir_as_folder($dir, $opts)) {
                 continue;
             }
             $folder_dirs[$dir] = true;
-            $tasks[] = ['t' => 'dir', 'd' => $dir];
+            if (!isset($existing_folder_paths[mb_strtolower($dir)])) {
+                $tasks[] = ['t' => 'dir', 'd' => $dir];
+                $new_folders++;
+            }
         }
 
         foreach ($walk['files'] as $rel) {
@@ -317,23 +411,28 @@ class Uploads_Sync
             $base = wp_basename($rel);
 
             if ($base === 'index.php' || $base === '.htaccess') {
+                $stats['system']++;
                 continue;
             }
 
             if (isset($known['main'][$rel])) {
-                // Registered already: just make sure it is linked to the matching folder.
-                if ($dir !== '' && isset($folder_dirs[$dir])) {
+                $stats['known']++;
+                // Registered already: link it to the matching folder, but only when it has no folder
+                // yet (never override an assignment the user made on purpose).
+                if ($dir !== '' && isset($folder_dirs[$dir]) && !isset($linked_ids[$known['main'][$rel]])) {
                     $tasks[] = ['t' => 'link', 'id' => $known['main'][$rel], 'd' => $dir];
                     $link_files++;
                 }
                 continue;
             }
             if (isset($known['derived'][$rel]) || $this->looks_generated($rel, $all_files_set)) {
+                $stats['generated']++;
                 continue;
             }
             // Only types WordPress would accept in the Media Library.
             $type = wp_check_filetype($base);
             if (empty($type['ext']) || empty($type['type'])) {
+                $stats['unsupported']++;
                 continue;
             }
             $tasks[] = ['t' => 'file', 'f' => $rel, 'd' => isset($folder_dirs[$dir]) ? $dir : ''];
@@ -349,13 +448,6 @@ class Uploads_Sync
             return $order[$a['t']] <=> $order[$b['t']];
         });
 
-        $existing_folder_paths = $this->existing_folder_paths();
-        $new_folders = 0;
-        foreach ($folder_dirs as $dir => $_) {
-            if (!isset($existing_folder_paths[mb_strtolower($dir)])) {
-                $new_folders++;
-            }
-        }
 
         return [
             'tasks' => $tasks,
@@ -364,6 +456,12 @@ class Uploads_Sync
                 'new_folders' => $new_folders,
                 'link_files' => $link_files,
                 'directories' => count($folder_dirs),
+                // What the scan looked at, so "nothing to do" is still a visible, checkable result.
+                'dirs_found' => count($walk['dirs']),
+                'files_found' => count($walk['files']),
+                'already_in_library' => $stats['known'],
+                'skipped_generated' => $stats['generated'],
+                'skipped_unsupported' => $stats['unsupported'],
             ],
         ];
     }
@@ -378,6 +476,19 @@ class Uploads_Sync
         }
         // Any ancestor that is a date folder with sub folders deeper than YYYY/MM is a user dir; allow.
         return false;
+    }
+
+    /**
+     * IDs of attachments that already belong to at least one folder.
+     *
+     * @return array<int,true>
+     */
+    private function linked_attachment_ids()
+    {
+        global $wpdb;
+        $rel = $wpdb->prefix . 'folderify_relationships';
+        $ids = $wpdb->get_col("SELECT DISTINCT object_id FROM {$rel} WHERE folder_id > 0"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        return array_fill_keys(array_map('intval', (array) $ids), true);
     }
 
     /**
