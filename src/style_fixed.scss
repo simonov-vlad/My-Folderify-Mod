@@ -1,0 +1,1174 @@
+/* Base styling for our React app */
+
+:root {
+    --folderify-sidebar-width: 300px;
+}
+
+@keyframes folderify_spin {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* WP Media Frame overrides when plugin is active */
+body.folderify-active #wpbody {
+    display: flex !important;
+    min-height: calc(100vh - 32px);
+    /* Account for WP admin bar */
+}
+
+body.folderify-active #wpbody-content {
+    flex: 1;
+    min-width: 0;
+    padding-bottom: 0;
+    position: relative;
+    /* Reset WordPress default list view padding, but add a gap from our sidebar */
+    padding-left: 20px !important;
+}
+
+#folderify-root {
+    width: var(--folderify-sidebar-width);
+    flex-shrink: 0;
+    align-self: flex-start;
+    /* Crucial for sticky positioning in flex container */
+    position: sticky;
+    top: 32px;
+    /* WP admin bar height */
+    height: calc(100vh - 32px);
+    z-index: 1000;
+    background: #f1f1f1;
+    border-right: 1px solid #ccd0d4;
+    box-sizing: border-box;
+    margin-left: -20px;
+}
+
+/* Media Modal Integration */
+.attachments-browser.folderify-active {
+    display: flex;
+    flex-direction: column;
+}
+
+.folderify-flex-container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    height: 100%;
+}
+
+#folderify-modal-root {
+    width: var(--folderify-sidebar-width);
+    flex-shrink: 0;
+    border-right: 1px solid #ccd0d4;
+    background: #fff;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.folderify-modal-content {
+    flex: 1;
+    position: relative;
+    min-width: 0;
+}
+
+/* Reset any left properties on standard WP elements that may be defined in WP core */
+.attachments-browser.folderify-active .media-toolbar,
+.attachments-browser.folderify-active .attachments,
+.attachments-browser.folderify-active .uploader-inline,
+.attachments-browser.folderify-active .attachments-wrapper {
+    left: 0 !important;
+}
+
+/* Drag and Drop Helper — matches sidebar style */
+.folderify-drag-helper {
+    z-index: 999999;
+    background: #1e293b;
+    border: none;
+    color: #f1f5f9;
+    padding: 5px 10px 5px 8px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    pointer-events: none;
+    white-space: nowrap;
+    letter-spacing: 0.2px;
+
+    .dashicons {
+        font-size: 15px;
+        width: 15px;
+        height: 15px;
+        color: #94a3b8;
+    }
+
+    .folderify-drag-count {
+        background: #0ea5e9;
+        color: #fff;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 0 6px;
+        line-height: 18px;
+        min-width: 18px;
+        text-align: center;
+        display: inline-block;
+    }
+}
+
+/* Ensure the WP list table doesn't overflow the flex container */
+body.folderify-active .wp-list-table {
+    table-layout: fixed;
+}
+
+/* Sidebar Wrapper */
+.folderify-sidebar-wrapper {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    background: #ffffff;
+    /* Premium white */
+}
+
+.folderify-sidebar-inner {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Top Bar (Search & Hamburger) / Toolbar Overlay */
+.folderify-top-bar {
+    display: flex;
+    align-items: stretch;
+    height: 54px;
+    border-bottom: 1px solid #dcdcde;
+    background: #fbfbfc;
+
+    &.folderify-toolbar-overlay {
+        .folderify-toolbar-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 15px;
+            transition: background 0.2s ease, color 0.2s ease;
+            color: #50575e;
+
+            &:hover {
+                background: #f0f0f1;
+                color: var(--wp-admin-theme-color, #2271b1);
+
+                svg {
+                    stroke: var(--wp-admin-theme-color, #2271b1);
+                    fill: var(--wp-admin-theme-color, #2271b1);
+                }
+            }
+
+            svg {
+                transition: stroke 0.2s ease, fill 0.2s ease;
+
+                // For icons that use stroke exclusively (like the sort icon)
+                &[fill="none"] {
+                    fill: none !important;
+                }
+
+                // For icons that use fill exclusively (like the dots and close arrow)
+                &[stroke="none"] {
+                    stroke: none !important;
+                }
+            }
+        }
+
+        .folderify-sort-wrapper,
+        .folderify-toolbar-dropdown-wrapper {
+            position: relative;
+
+            .folderify-options-dropdown-container {
+                left: 0 !important;
+                right: auto;
+                min-width: 100%;
+
+                .folderify-item-content {
+                    justify-content: flex-start !important;
+                }
+            }
+
+            .folderify-sort-dropdown-container {
+                position: absolute;
+                top: calc(100% + 5px);
+                left: 0;
+                background: #fff;
+                border: 1px solid #c3c4c7;
+                border-radius: 3px;
+                box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+                z-index: 100000;
+                min-width: 160px;
+                padding: 5px 0;
+
+                ul {
+                    list-style: none;
+                    margin: 0;
+                    padding: 0;
+                }
+
+                .folderify-dropdown-item {
+                    position: relative;
+
+                    .folderify-item-content {
+                        padding: 8px 12px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        color: #50575e;
+                        font-size: 13px;
+                        cursor: pointer;
+                        transition: background 0.1s;
+                        user-select: none;
+
+                        &:hover {
+                            background: #f0f0f1;
+                            color: var(--wp-admin-theme-color, #2271b1);
+                        }
+
+                        &.active {
+                            background: #f0f0f1;
+                            color: var(--wp-admin-theme-color, #2271b1);
+                        }
+
+                        .folderify-chevron {
+                            opacity: 0.5;
+                            width: 14px;
+                            height: 14px;
+                            stroke-width: 1.5;
+                        }
+                    }
+
+                    &.folderify-divider {
+                        height: 1px;
+                        background: #dcdcde;
+                        margin: 5px 0;
+                        pointer-events: none;
+                    }
+
+                    /* Show submenu on hover */
+                    &:hover>.folderify-submenu {
+                        display: block;
+                    }
+
+                    .folderify-submenu {
+                        display: none;
+                        position: absolute;
+                        top: -5px;
+                        left: 100%;
+                        background: #fff;
+                        border: 1px solid #c3c4c7;
+                        border-radius: 3px;
+                        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+                        min-width: 150px;
+                        padding: 5px 0;
+                        margin-left: -1px;
+                        /* Overlap border */
+                    }
+                }
+
+                /* Styles for checkmarks */
+                .folderify-check-item {
+                    justify-content: flex-start !important;
+
+                    .folderify-check-icon {
+                        margin-right: 8px;
+                        color: var(--wp-admin-theme-color, #2271b1);
+                        width: 16px;
+                        height: 16px;
+                        flex-shrink: 0;
+                    }
+
+                    .folderify-no-icon {
+                        width: 16px;
+                        margin-right: 8px;
+                        display: inline-block;
+                    }
+
+                    &.active {
+                        /* Checkmark items are white bg in mockup, just blue text */
+                        background: #fff;
+                        color: var(--wp-admin-theme-color, #2271b1);
+
+                        &:hover {
+                            background: #f0f0f1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    .folderify-search {
+        flex: 1;
+        border-right: 1px solid #dcdcde;
+        display: flex;
+        align-items: center;
+        padding: 0 15px;
+
+        .folderify-search-input-wrapper {
+            position: relative;
+            width: 100%;
+            display: flex;
+            align-items: center;
+
+            input {
+                width: 100%;
+                height: 36px;
+                padding: 0 30px 0 0;
+                border: none;
+                background: transparent;
+                box-shadow: none;
+                font-size: 14px;
+                color: #8c8f94;
+
+                &::placeholder {
+                    color: #8c8f94;
+                }
+
+                &:focus {
+                    border: none;
+                    box-shadow: none;
+                    outline: none;
+                }
+            }
+
+            .search-icon {
+                position: absolute;
+                right: 0;
+                color: #a0aab2;
+                pointer-events: none;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+        }
+    }
+
+    .folderify-hamburger-btn {
+        width: 54px;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.15s ease;
+
+        svg {
+            stroke: #8c8f94;
+        }
+
+        &:hover {
+            background: #f0f6fc;
+
+            svg {
+                stroke: var(--wp-admin-theme-color, #2271b1);
+            }
+        }
+    }
+}
+
+/* System Folders */
+.folderify-system-folders-wrapper {
+    /* No padding, flush to edges */
+    border-bottom: 1px solid #dcdcde;
+}
+
+.folderify-system-folders-grid {
+    display: flex;
+    background: #fff;
+
+    .sf-cell {
+        flex: 1;
+        padding: 12px 15px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        transition: background 0.15s ease;
+
+        &:hover {
+            background: #f6f7f7;
+        }
+
+        &.active {
+            background: #f0f6fc;
+
+            .sf-title {
+                color: var(--wp-admin-theme-color, #2271b1);
+            }
+        }
+
+        &.sf-left {
+            border-right: 1px solid #dcdcde;
+        }
+
+        .sf-title {
+            font-size: 14px;
+            color: #3c434a;
+            margin-bottom: 4px;
+        }
+
+        .sf-count {
+            font-size: 13px;
+            color: #8c8f94;
+        }
+    }
+}
+
+/* Input Buttons Hover */
+.folderify-input-btn {
+    transition: all 0.2s ease;
+
+    svg {
+        transition: all 0.2s ease;
+    }
+
+    &.confirm-btn:hover {
+        background: #22c55e !important;
+        border-color: #22c55e !important;
+        color: #fff !important;
+    }
+
+    &.cancel-btn:hover {
+        background: #ef4444 !important;
+        border-color: #ef4444 !important;
+        color: #fff !important;
+    }
+}
+
+/* Tree */
+.folderify-tree {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px 10px;
+
+    ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    /* Nested ULs (Subfolders) */
+    ul.folderify-subfolders {
+        margin-left: 20px;
+        position: relative;
+
+        &>.folderify-folder-item {
+            position: relative;
+
+            /* Horizontal branch connecting to this item */
+            &::before {
+                content: '';
+                position: absolute;
+                top: 17px;
+                /* Center of the 34px header / 20px icon */
+                left: 0;
+                width: 5px;
+                /* Leave a 5px gap before the 10px-left icon */
+                height: 1px;
+                background: #e5e7eb;
+                /* Subtle gray-200 */
+                z-index: 1;
+            }
+
+            /* Vertical trunk connecting from parent down */
+            &::after {
+                content: '';
+                position: absolute;
+                top: 0;
+                /* Align with top of current item */
+                bottom: -2px;
+                /* Reach down to the next item */
+                left: 0;
+                width: 1px;
+                background: #e5e7eb;
+                z-index: 1;
+            }
+
+            /* Start gap for the first child */
+            &:first-child::after {
+                top: -2px;
+                /* 4px gap from the parent circle's bottom (-8px) */
+            }
+
+            /* Stop vertical trunk at the last item's horizontal branch */
+            &:last-child::after {
+                bottom: auto;
+                height: 17px;
+                /* Reach exactly to the branch center */
+            }
+
+            /* Special case: both first and last child */
+            &:first-child:last-child::after {
+                height: 19px;
+                /* 17px - (-2px) = 19px */
+            }
+        }
+    }
+
+    .folderify-folder-item {
+        position: relative;
+        margin-bottom: 2px;
+        /* Increased for airy feel */
+
+        &>.folderify-folder-header {
+            border-radius: 4px;
+            padding: 6px 10px;
+            /* Slimmer header padding */
+            transition: all 0.15s ease;
+            font-size: 13px;
+            color: #50575e;
+            position: relative;
+            z-index: 2;
+            /* Keep clicks above lines */
+
+            &:hover {
+                background: #f2f4f6;
+            }
+
+            .folder-count {
+                font-size: 12px;
+                color: #8c8f94;
+                transition: all 0.2s ease;
+            }
+
+            .folder-toggle-icon:hover {
+                color: var(--wp-admin-theme-color, #2271b1) !important; // Subtle hint for toggle clicks
+            }
+        }
+
+        &.active>.folderify-folder-header {
+            background: #f2f4f6;
+
+            /* Text handles its own color via JS now, but enforcing count color */
+            .folder-count {
+                color: var(--wp-admin-theme-color, #2271b1) !important;
+                /* Brighter blue for numbers */
+            }
+        }
+
+        &.context-menu-active>.folderify-folder-header {
+            background: var(--wp-admin-theme-color, #2271b1) !important;
+
+            .folder-name,
+            .folder-count {
+                color: #fff !important;
+                font-weight: 500 !important;
+            }
+
+            .folder-icon {
+                color: #fff !important;
+            }
+        }
+    }
+}
+
+/* Resizer Handle */
+.folderify-resizer {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    bottom: 0;
+    width: 6px;
+    cursor: col-resize;
+    z-index: 10;
+
+    &:hover {
+        background: rgba(34, 113, 177, 0.2);
+    }
+}
+
+/* Toggle */
+.folderify-toggle {
+    position: absolute;
+    top: 50%;
+    right: -14px;
+    width: 14px;
+    height: 48px;
+    background: #ffffff;
+    border: 1px solid #ccd0d4;
+    border-left: none;
+    border-radius: 0 6px 6px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 10px;
+    color: #50575e;
+    transform: translateY(-50%);
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+    z-index: 10001;
+
+    &:hover {
+        background: #f6f7f7;
+        color: var(--wp-admin-theme-color, #2271b1);
+        width: 18px;
+        right: -18px;
+    }
+}
+
+/* Bottom Bar */
+.folderify-bottom-bar {
+    padding: 15px;
+    background: #fff;
+    margin-top: auto;
+    /* push to bottom in flex column */
+
+    .folderify-add-folder-btn {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 6px;
+        height: 36px;
+        font-weight: 600;
+        background: var(--wp-admin-theme-color, #2271b1);
+        color: #fff;
+        border: 1px solid var(--wp-admin-theme-color, #2271b1);
+        border-radius: 3px;
+        cursor: pointer;
+        transition: background 0.15s ease;
+
+        &:hover {
+            background: var(--wp-admin-theme-color-darker-20, #135e96);
+            border-color: var(--wp-admin-theme-color-darker-20, #135e96);
+        }
+    }
+}
+
+/* Sidebar Wrapper */
+.folderify-sidebar-wrapper {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    background: #ffffff;
+
+    &.collapsed {
+        border-right: none;
+        background: transparent;
+
+        .folderify-toggle {
+            right: -14px;
+            /* Fixed protruding right */
+            border-left: 1px solid #ccd0d4;
+            /* Add back left border when fully collapsed to form a button */
+            border-radius: 0 6px 6px 0;
+
+            &:hover {
+                right: -18px;
+            }
+        }
+    }
+}
+
+/* Suppress native WP drag-and-drop overlay when reordering folders */
+body.folderify-folder-dragging .uploader-window {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    z-index: -1 !important;
+}
+
+/* --- Media Area Header (Breadcrumb + Subfolder Cards) --- */
+
+.folderify-media-header {
+    padding: 8px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Breadcrumb — flat, no background */
+.folderify-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: #50575e;
+    line-height: 1;
+    flex-wrap: wrap;
+}
+
+.folderify-breadcrumb-home {
+    display: inline-flex;
+    align-items: center;
+    border: none;
+    background: none;
+    color: var(--wp-admin-theme-color, #2271b1);
+    cursor: pointer;
+    padding: 0;
+
+    &:hover {
+        color: var(--wp-admin-theme-color-darker-20, #135e96);
+    }
+}
+
+.folderify-breadcrumb-segment {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.folderify-breadcrumb-sep {
+    color: #c3c4c7;
+    display: inline-flex;
+    align-items: center;
+}
+
+.folderify-breadcrumb-link {
+    background: none;
+    border: none;
+    color: var(--wp-admin-theme-color, #2271b1);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0;
+    font-weight: 400;
+
+    &:hover {
+        color: var(--wp-admin-theme-color-darker-20, #135e96);
+        text-decoration: underline;
+    }
+}
+
+.folderify-breadcrumb-current {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.folderify-breadcrumb-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* Subfolder chips — compact, WP style */
+.folderify-subfolders-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-bottom: 2px;
+}
+
+.folderify-subfolder-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #f6f7f7;
+    border: 1px solid #c3c4c7;
+    border-radius: 3px;
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: border-color 0.1s, background 0.1s;
+    font-size: 12px;
+    color: #1d2327;
+
+    &:hover {
+        border-color: var(--wp-admin-theme-color, #2271b1);
+        background: #f0f6fc;
+        color: var(--wp-admin-theme-color, #2271b1);
+    }
+}
+
+.folderify-subfolder-icon {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.folderify-subfolder-name {
+    font-weight: 400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+}
+
+.folderify-subfolder-count {
+    font-size: 11px;
+    color: #8c8f94;
+    background: #e5e5e5;
+    border-radius: 10px;
+    padding: 1px 6px;
+    line-height: 1.5;
+}
+
+/* --- Empty State --- */
+.folderify-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 32px 20px;
+    gap: 6px;
+}
+
+.folderify-empty-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d2327;
+    margin: 8px 0 0;
+}
+
+.folderify-empty-desc {
+    font-size: 12px;
+    color: #8c8f94;
+    margin: 0 0 10px;
+    line-height: 1.5;
+}
+
+.folderify-empty-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+
+.folderify-empty-btn-primary {
+    background: var(--wp-admin-theme-color, #2271b1);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 7px 14px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.15s;
+
+    &:hover {
+        background: var(--wp-admin-theme-color-darker-20, #135e96);
+    }
+}
+
+.folderify-empty-btn-secondary {
+    display: block;
+    background: none;
+    color: var(--wp-admin-theme-color, #2271b1);
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-size: 12px;
+    text-align: center;
+    text-decoration: none;
+    transition: border-color 0.15s, color 0.15s;
+
+    &:hover {
+        border-color: var(--wp-admin-theme-color, #2271b1);
+        color: var(--wp-admin-theme-color-darker-20, #135e96);
+    }
+}
+
+/* --- Upload Folder Picker --- */
+
+#folderify-upload-folder-picker {
+    display: flex;
+    justify-content: center;
+    padding: 4px 0 12px;
+}
+
+.folderify-upload-picker {
+    width: 100%;
+    max-width: 380px;
+    font-family: inherit;
+}
+
+.folderify-upload-picker-inner {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.folderify-upload-picker-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12.5px;
+    color: #50575e;
+    font-weight: 500;
+    white-space: nowrap;
+
+    svg {
+        color: #8c8f94;
+        flex-shrink: 0;
+    }
+}
+
+/* Trigger button */
+.folderify-folder-select-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #fff;
+    border: 1.5px solid #dcdcde;
+    border-radius: 6px;
+    padding: 5px 10px 5px 8px;
+    font-size: 13px;
+    color: #1d2327;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    min-width: 160px;
+    position: relative;
+
+    &:hover {
+        border-color: var(--wp-admin-theme-color, #2271b1);
+        box-shadow: 0 0 0 1px var(--wp-admin-theme-color, #2271b1);
+    }
+
+    &.is-open {
+        border-color: var(--wp-admin-theme-color, #2271b1);
+        box-shadow: 0 0 0 2px rgba(34, 113, 177, 0.15);
+    }
+
+    .folderify-folder-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    .folderify-folder-select-name {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 180px;
+        text-align: left;
+    }
+
+    .folderify-folder-clear {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #e5e5e5;
+        color: #50575e;
+        font-size: 12px;
+        line-height: 1;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background 0.1s, color 0.1s;
+
+        &:hover {
+            background: #ef4444;
+            color: #fff;
+        }
+    }
+
+    .folderify-chevron {
+        color: #8c8f94;
+        flex-shrink: 0;
+        transition: transform 0.18s ease;
+    }
+
+    &.is-open .folderify-chevron {
+        transform: rotate(180deg);
+    }
+}
+
+/* Dropdown panel */
+.folderify-folder-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 999999;
+    background: #fff;
+    border: 1.5px solid #dcdcde;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.07);
+    width: 320px;
+    overflow: hidden;
+    animation: moDropdownIn 0.14s ease;
+}
+
+@keyframes moDropdownIn {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+/* Search input */
+.folderify-folder-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #f0f0f1;
+    background: #fafafa;
+
+    svg {
+        color: #a0aab2;
+        flex-shrink: 0;
+    }
+}
+
+.folderify-folder-search-input {
+    flex: 1;
+    border: none !important;
+    background: transparent !important;
+    outline: none !important;
+    box-shadow: none !important;
+    font-size: 13px;
+    color: #1d2327;
+    padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+
+    &::placeholder {
+        color: #b4b9be;
+    }
+
+    &::-webkit-search-cancel-button {
+        -webkit-appearance: none;
+    }
+}
+
+/* Options list */
+.folderify-folder-list {
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 4px 0;
+
+    &::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background: #dcdcde;
+        border-radius: 4px;
+    }
+}
+
+/* -- Tree picker nodes -- */
+.folderify-pt-root,
+.folderify-pt-children {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.folderify-pt-children {
+    position: relative;
+    margin-left: 16px;
+
+    // Vertical trunk line
+    &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 4px;
+        left: -10px;
+        width: 1px;
+        background: #dcdcde;
+        pointer-events: none;
+    }
+
+    // Horizontal branch per child
+    >.folderify-pt-item::before {
+        content: '';
+        position: absolute;
+        top: 13px;
+        left: -10px;
+        width: 8px;
+        height: 1px;
+        background: #dcdcde;
+        pointer-events: none;
+    }
+}
+
+.folderify-pt-item {
+    position: relative;
+    margin: 0;
+}
+
+.folderify-pt-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+    padding: 3px 4px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: #1d2327;
+    text-align: left;
+    border-radius: 4px;
+    transition: background 0.1s;
+    box-sizing: border-box;
+
+    &:hover {
+        background: #f2f4f6;
+    }
+
+    &.is-selected {
+        background: #f0f6fc;
+        color: var(--wp-admin-theme-color, #2271b1);
+    }
+
+    .folderify-pt-icon {
+        flex-shrink: 0;
+    }
+
+    .folderify-pt-name {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .folderify-pt-check {
+        flex-shrink: 0;
+        margin-left: auto;
+    }
+}
+
+.folderify-folder-option-empty {
+    padding: 10px 14px;
+    font-size: 12.5px;
+    color: #a0aab2;
+    text-align: center;
+    list-style: none;
+}@ k e y f r a m e s   m o _ f a d e _ i n _ u p   { 
+         f r o m   { 
+                 o p a c i t y :   0 ; 
+                 t r a n s f o r m :   t r a n s l a t e ( - 5 0 % ,   1 0 p x ) ; 
+         } 
+         t o   { 
+                 o p a c i t y :   1 ; 
+                 t r a n s f o r m :   t r a n s l a t e ( - 5 0 % ,   0 ) ; 
+         } 
+ } 
+ 
+ 

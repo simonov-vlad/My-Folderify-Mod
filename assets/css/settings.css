@@ -1,0 +1,420 @@
+/* ── Page chrome ── */
+            .settings_page_folderify #wpbody-content>.notice,
+            .settings_page_folderify #wpbody-content>.updated,
+            .settings_page_folderify #wpbody-content>.update-message {
+                display: none !important;
+            }
+
+            .folderify-wrap {
+                max-width: 700px;
+                margin: 28px 0;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            }
+            .folderify-wrap, .folderify-wrap * {
+                box-sizing: border-box;
+            }
+
+            /* ── Header ── */
+            .folderify-header {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 20px;
+            }
+
+            .folderify-header h1 {
+                margin: 0;
+                font-size: 20px;
+                font-weight: 600;
+                color: #1d2327;
+            }
+
+            .folderify-badge {
+                font-size: 11px;
+                background: #e8f0fe;
+                color: var(--wp-admin-theme-color, #2271b1);
+                border-radius: 20px;
+                padding: 2px 10px;
+                font-weight: 600;
+            }
+
+            /* ── Save notice ── */
+            .folderify-notice {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                background: #edfaef;
+                border: 1px solid #a8e6b0;
+                border-radius: 6px;
+                padding: 10px 14px;
+                margin-bottom: 18px;
+                font-size: 13px;
+                color: #1a6630;
+            }
+
+            /* ── Tab nav ── */
+            .folderify-tabs {
+                display: flex;
+                gap: 0;
+                border-bottom: 2px solid #e0e0e0;
+                margin-bottom: 20px;
+            }
+
+            .folderify-tab {
+                display: flex;
+                align-items: center;
+                gap: 7px;
+                padding: 9px 18px;
+                font-size: 13px;
+                font-weight: 500;
+                color: #646970;
+                cursor: pointer;
+                text-decoration: none;
+                border: none;
+                background: none;
+                border-bottom: 2px solid transparent;
+                margin-bottom: -2px;
+                transition: color .15s;
+            }
+
+            .folderify-tab svg {
+                opacity: .7;
+            }
+
+            .folderify-tab:hover {
+                color: var(--wp-admin-theme-color, #2271b1);
+            }
+
+            .folderify-tab.active {
+                color: var(--wp-admin-theme-color, #2271b1);
+                border-bottom-color: var(--wp-admin-theme-color, #2271b1);
+                font-weight: 600;
+            }
+
+            .folderify-tab.active svg {
+                opacity: 1;
+            }
+
+            /* ── Tab panels ── */
+            .folderify-panel {
+                display: none;
+            }
+
+            .folderify-panel.active {
+                display: block;
+            }
+
+            /* ── Card ── */
+            .folderify-card {
+                background: #fff;
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                margin-bottom: 16px;
+                overflow: hidden;
+            }
+
+            .folderify-card-head {
+                padding: 14px 20px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+
+            .folderify-card-title {
+                font-size: 13px;
+                font-weight: 600;
+                color: #1d2327;
+                margin: 0;
+            }
+
+            .folderify-card-desc {
+                font-size: 12px;
+                color: #8c8f94;
+                margin: 3px 0 0;
+            }
+
+            /* ── Row ── */
+            .folderify-row {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 20px;
+                padding: 15px 20px;
+                border-bottom: 1px solid #f7f7f7;
+            }
+
+            .folderify-row:last-child {
+                border-bottom: none;
+            }
+
+            .folderify-row-label {
+                flex: 1;
+            }
+
+            .folderify-row-label strong {
+                font-size: 13px;
+                color: #1d2327;
+                font-weight: 500;
+                display: block;
+            }
+
+            .folderify-row-label span {
+                font-size: 12px;
+                color: #8c8f94;
+                margin-top: 2px;
+                display: block;
+                line-height: 1.5;
+            }
+
+            /* ── Toggle ── */
+            .folderify-setting-toggle {
+                position: relative;
+                display: inline-flex;
+                width: 40px !important;
+                min-width: 40px !important;
+                height: 22px !important;
+                flex-shrink: 0 !important;
+                margin-top: 2px;
+            }
+
+            .folderify-setting-toggle input {
+                opacity: 0;
+                width: 0;
+                height: 0;
+                position: absolute;
+            }
+
+            .folderify-setting-toggle-slider {
+                position: absolute;
+                inset: 0;
+                background: #c3c4c7;
+                border-radius: 22px;
+                cursor: pointer;
+                transition: background .2s;
+            }
+
+            .folderify-setting-toggle-slider::before {
+                content: '';
+                position: absolute;
+                width: 16px;
+                height: 16px;
+                border-radius: 50%;
+                background: #fff;
+                top: 3px;
+                left: 3px;
+                transition: transform .2s;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+            }
+
+            .folderify-setting-toggle input:checked+.folderify-setting-toggle-slider {
+                background: var(--wp-admin-theme-color, #2271b1);
+            }
+
+            .folderify-setting-toggle input:checked+.folderify-setting-toggle-slider::before {
+                transform: translateX(18px);
+            }
+
+            /* ── Footer ── */
+            .folderify-footer {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-top: 20px;
+            }
+
+            .folderify-footer .button-primary {
+                border-radius: 5px;
+                height: 36px;
+                line-height: 34px;
+                padding: 0 18px;
+                font-size: 13px;
+            }
+
+            .folderify-footer-hint {
+                font-size: 12px;
+                color: #8c8f94;
+            }
+
+            /* ── Import/Export ── */
+            .folderify-ie-block {
+                padding: 18px 20px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+
+            .folderify-ie-block:last-child {
+                border-bottom: none;
+            }
+
+            .folderify-ie-title {
+                font-size: 13px;
+                font-weight: 600;
+                color: #1d2327;
+                margin: 0 0 4px;
+            }
+
+            .folderify-ie-desc {
+                font-size: 12px;
+                color: #8c8f94;
+                margin: 0 0 12px;
+                line-height: 1.5;
+            }
+
+            .folderify-ie-actions {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+
+            .folderify-ie-actions input[type=file] {
+                font-size: 12px;
+            }
+
+            .folderify-ie-actions select {
+                height: 30px;
+                font-size: 12px;
+                border-radius: 4px;
+                border: 1px solid #c3c4c7;
+                padding: 0 24px 0 8px;
+            }
+
+            #folderify-import-csv-status {
+                font-size: 12px;
+                padding: 4px 10px;
+                border-radius: 4px;
+                background: #f0f0f1;
+            }
+
+            #folderify-import-csv-status.ok {
+                background: #edfaef;
+                color: #1a6630;
+            }
+
+            #folderify-import-csv-status.err {
+                background: #fce8e8;
+                color: #8b1a1a;
+            }
+
+            /* ── Backups table ── */
+            .folderify-backup-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 12.5px;
+                margin-top: 12px;
+            }
+
+            .folderify-backup-table th {
+                text-align: left;
+                padding: 6px 10px;
+                background: #f6f7f7;
+                border-bottom: 1px solid #e0e0e0;
+                color: #646970;
+                font-weight: 600;
+            }
+
+            .folderify-backup-table td {
+                padding: 8px 10px;
+                border-bottom: 1px solid #f0f0f1;
+                vertical-align: middle;
+            }
+
+            .folderify-backup-table tr:last-child td {
+                border-bottom: none;
+            }
+
+            .folderify-backup-table .user-col {
+                font-weight: 500;
+                color: #1d2327;
+            }
+
+            .folderify-backup-empty {
+                padding: 20px;
+                text-align: center;
+                color: #8c8f94;
+                font-size: 13px;
+            }
+
+            /* ── Radio labels ── */
+            .folderify-radio-label {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 13px;
+                color: #1d2327;
+                cursor: pointer;
+            }
+
+            .folderify-radio-label input[type=radio] {
+                accent-color: var(--wp-admin-theme-color, #2271b1);
+                width: 15px;
+                height: 15px;
+                cursor: pointer;
+                flex-shrink: 0;
+            }
+
+            /* ── Pro locks ── */
+            .folderify-pro-lock {
+                position: relative;
+            }
+
+            .folderify-pro-lock input,
+            .folderify-pro-lock select,
+            .folderify-pro-lock button {
+                pointer-events: none !important;
+            }
+
+            .folderify-pro-overlay {
+                position: absolute;
+                inset: 0;
+                background: rgba(255, 255, 255, 0.4);
+                display: none;
+                align-items: center;
+                justify-content: center;
+                z-index: 100;
+                backdrop-filter: blur(1px);
+                cursor: pointer;
+                border-radius: inherit;
+            }
+
+            .folderify-pro-lock:hover .folderify-pro-overlay {
+                display: flex;
+            }
+
+            .folderify-pro-btn {
+                background: var(--wp-admin-theme-color, #2271b1) !important;
+                color: #fff !important;
+                padding: 6px 14px;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: 600;
+                text-decoration: none;
+                box-shadow: 0 4px 10px rgba(34, 113, 177, 0.3);
+            }
+
+            .folderify-pro-btn:hover {
+                color: #fff;
+                background: var(--wp-admin-theme-color-darker-20, #135e96);
+            }
+
+            .folderify-badge-pro {
+                display: inline-flex !important;
+                align-items: center;
+                justify-content: center;
+                font-size: 9px;
+                background: #fecb2e !important;
+                color: #000 !important;
+                padding: 2px 6px !important;
+                border-radius: 4px !important;
+                margin-left: 8px !important;
+                vertical-align: middle !important;
+                text-transform: uppercase !important;
+                font-weight: 700 !important;
+                line-height: 1 !important;
+                white-space: nowrap !important;
+                width: auto !important;
+                height: auto !important;
+                flex-shrink: 0 !important;
+            }
+
+            .folderify-disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }

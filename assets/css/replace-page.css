@@ -1,0 +1,354 @@
+:root {
+                --folderify-primary: var(--wp-admin-theme-color, #2271b1);
+                --folderify-primary-hover: var(--wp-admin-theme-color-darker-20, #135e96);
+                --folderify-bg: #f0f0f1;
+                --folderify-card-bg: #ffffff;
+                --folderify-border: #dcdcde;
+                --folderify-text: #1d2327;
+                --folderify-text-muted: #646970;
+                --folderify-radius: 8px;
+                --folderify-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            }
+
+            .folderify-replace-wrap {
+                max-width: 1000px;
+                margin: 20px auto 40px;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+                color: var(--folderify-text);
+            }
+
+            .folderify-replace-header {
+                margin-bottom: 30px;
+                text-align: center;
+            }
+
+            .folderify-replace-header h1 {
+                font-size: 28px;
+                font-weight: 700;
+                margin: 0 0 10px;
+                color: var(--folderify-text);
+            }
+
+            .folderify-replace-header p {
+                font-size: 16px;
+                color: var(--folderify-text-muted);
+                margin: 0;
+            }
+
+            .folderify-replace-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 24px;
+                margin-bottom: 24px;
+            }
+
+            .folderify-card {
+                background: var(--folderify-card-bg);
+                border: 1px solid var(--folderify-border);
+                border-radius: var(--folderify-radius);
+                padding: 24px;
+                box-shadow: var(--folderify-shadow);
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+            }
+
+            .folderify-card-title {
+                font-size: 14px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                color: var(--folderify-text-muted);
+                margin-bottom: 20px;
+                display: block;
+            }
+
+            .folderify-preview-box {
+                width: 100%;
+                aspect-ratio: 16/10;
+                background: #f6f7f7;
+                border-radius: 6px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+                margin-bottom: 24px;
+                border: 1px solid var(--folderify-border);
+                position: relative;
+            }
+
+            .folderify-preview-box img {
+                max-width: 100%;
+                max-height: 100%;
+                object-fit: contain;
+            }
+
+            .folderify-preview-placeholder {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+                color: #a0aabc;
+                text-align: center;
+                padding: 20px;
+            }
+
+            .folderify-upload-container {
+                position: relative;
+                width: 100%;
+                aspect-ratio: 16/10;
+                margin-bottom: 24px;
+                cursor: pointer;
+            }
+
+            .folderify-upload-zone {
+                width: 100%;
+                height: 100%;
+                border: 2px dashed var(--folderify-border);
+                border-radius: var(--folderify-radius);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s ease;
+                background: #fff;
+                overflow: hidden;
+            }
+
+            .folderify-upload-zone:hover,
+            .folderify-upload-zone.is-dragging {
+                border-color: var(--folderify-primary);
+                background: #f0f6fc;
+            }
+
+            .folderify-upload-zone.has-file {
+                border: 1px solid var(--folderify-border);
+                background: #f6f7f7;
+            }
+
+            .folderify-upload-zone.has-file:hover {
+                border-color: var(--folderify-primary);
+            }
+
+            .folderify-upload-zone .dashicons-cloud-upload {
+                font-size: 40px;
+                width: 40px;
+                height: 40px;
+                color: #a0aabc;
+                margin-bottom: 12px;
+            }
+
+            .folderify-upload-zone p {
+                margin: 0;
+                font-size: 14px;
+                color: var(--folderify-text-muted);
+            }
+
+            .folderify-upload-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(34, 113, 177, 0.85);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                color: #fff;
+                opacity: 0;
+                transition: opacity 0.2s;
+                border-radius: var(--folderify-radius);
+                z-index: 10;
+            }
+
+            .folderify-upload-container:hover .folderify-upload-overlay.active {
+                opacity: 1;
+            }
+
+            .folderify-upload-overlay .dashicons {
+                font-size: 32px;
+                width: 32px;
+                height: 32px;
+                margin-bottom: 8px;
+            }
+
+            .folderify-file-info {
+                font-size: 13px;
+                line-height: 1.6;
+            }
+
+            .folderify-file-info strong {
+                color: var(--folderify-text);
+            }
+
+            .folderify-options-container {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 24px;
+            }
+
+            .folderify-option-group {
+                background: #fff;
+                border: 1px solid var(--folderify-border);
+                border-radius: var(--folderify-radius);
+                padding: 20px;
+                box-shadow: var(--folderify-shadow);
+            }
+
+            .folderify-option-group h3 {
+                font-size: 16px;
+                font-weight: 600;
+                margin: 0 0 16px;
+            }
+
+            .folderify-choice {
+                display: flex;
+                align-items: center;
+                position: relative;
+                padding: 12px 16px;
+                margin-bottom: 10px;
+                border: 1px solid var(--folderify-border);
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                min-height: 64px;
+            }
+
+            .folderify-choice:hover {
+                border-color: var(--folderify-primary);
+                background: #f9f9f9;
+            }
+
+            .folderify-choice input {
+                margin: 0 12px 0 0;
+                flex-shrink: 0;
+            }
+
+            .folderify-choice.active {
+                border-color: var(--folderify-primary);
+                background: #f0f6fc;
+                box-shadow: 0 0 0 1px var(--folderify-primary);
+            }
+
+            .folderify-choice-text {
+                display: block;
+            }
+
+            .folderify-choice-title {
+                display: block;
+                font-weight: 600;
+                font-size: 14px;
+                margin-bottom: 2px;
+            }
+
+            .folderify-choice-desc {
+                display: block;
+                font-size: 12px;
+                color: var(--folderify-text-muted);
+                line-height: 1.4;
+            }
+
+            .folderify-actions {
+                margin-top: 40px;
+                display: flex;
+                justify-content: center;
+                gap: 16px;
+            }
+
+            .folderify-btn {
+                height: 46px;
+                padding: 0 32px;
+                font-size: 15px;
+                font-weight: 600;
+                border-radius: 6px;
+                cursor: pointer;
+                transition: all 0.2s;
+                border: 1px solid transparent;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                text-decoration: none;
+            }
+
+            .folderify-btn-primary {
+                background: var(--folderify-primary);
+                color: #fff;
+            }
+
+            .folderify-btn-primary:hover {
+                background: var(--folderify-primary-hover);
+                color: #fff;
+            }
+
+            .folderify-btn-secondary {
+                background: #fff;
+                border-color: var(--folderify-border);
+                color: var(--folderify-text);
+            }
+
+            .folderify-replace-options input[type="radio"]:checked+.folderify-choice-content {
+                border-color: var(--folderify-primary);
+                background: #f0f7ff;
+            }
+
+            .folderify-replace-options input[type="radio"]:checked+.folderify-choice-content .folderify-choice-desc {
+                color: #555;
+            }
+
+            /* Custom Date "Exclusive Picker" Mode */
+            label.folderify-choice.is-custom-active .folderify-choice-text {
+                display: none;
+            }
+
+            label.folderify-choice.is-custom-active .folderify-date-input {
+                display: flex !important;
+                flex: 1;
+                justify-content: center;
+                gap: 16px;
+            }
+
+            .folderify-date-input {
+                display: none;
+            }
+
+            .folderify-date-field {
+                position: relative;
+                display: flex;
+                align-items: center;
+                min-width: 140px;
+            }
+
+            .folderify-date-field .dashicons {
+                position: absolute;
+                left: 10px;
+                color: var(--folderify-primary);
+                font-size: 16px;
+                width: 16px;
+                height: 16px;
+                pointer-events: none;
+            }
+
+            .folderify-date-input input {
+                border: 1px solid var(--folderify-border);
+                border-radius: 8px;
+                padding: 8px 10px 8px 34px;
+                font-size: 14px;
+                background: #fff;
+                transition: all 0.2s;
+                color: var(--folderify-text);
+                width: 100%;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            }
+
+            .folderify-date-input input:focus {
+                border-color: var(--folderify-primary);
+                outline: none;
+                box-shadow: 0 0 0 2px rgba(34, 113, 177, 0.1);
+            }
+
+            .folderify-date-input input[type="date"] {
+                flex: 1 1 140px;
+            }
+
+            .folderify-date-input input[type="time"] {
+                flex: 1 1 100px;
+            }
