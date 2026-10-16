@@ -73,7 +73,7 @@ class Settings
     public function sanitize_settings($input)
     {
         $sanitized = [];
-        $checkboxes = ['delete_on_uninstall', 'per_user_folders', 'show_breadcrumb'];
+        $checkboxes = ['delete_on_uninstall', 'per_user_folders', 'show_breadcrumb', 'physical_folders'];
         foreach ($checkboxes as $key) {
             $sanitized[$key] = !empty($input[$key]) ? 1 : 0;
         }
@@ -186,6 +186,15 @@ class Settings
                         <line x1="12" y1="15" x2="12" y2="3" />
                     </svg>
                     <?php esc_html_e('Import / Export', 'folderify'); ?>
+                </a>
+                <a href="?page=folderify&tab=sync" class="folderify-tab <?php echo $active === 'sync' ? 'active' : ''; ?>">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10" />
+                        <polyline points="1 20 1 14 7 14" />
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                    </svg>
+                    <?php esc_html_e('Uploads sync', 'folderify'); ?>
                 </a>
                 <?php if ( true ) : ?>
                 <a href="?page=folderify&tab=backups" class="folderify-tab <?php echo $active === 'backups' ? 'active' : ''; ?>">
@@ -322,6 +331,27 @@ class Settings
                         </div>
                     </div>
                     <?php endif; ?>
+
+                    <div class="folderify-card">
+                        <div class="folderify-card-head">
+                            <p class="folderify-card-title">
+                                <?php esc_html_e('Real folders on disk', 'folderify'); ?>
+                            </p>
+                            <p class="folderify-card-desc">
+                                <?php esc_html_e('Mirror the folder tree as real directories inside wp-content/uploads.', 'folderify'); ?>
+                            </p>
+                        </div>
+                        <div class="folderify-row">
+                            <div class="folderify-row-label">
+                                <strong><?php esc_html_e('Store media in real folders', 'folderify'); ?></strong>
+                                <span><?php esc_html_e('New uploads go straight into the folder directory. Assigning a file to a folder moves it (with thumbnails) and fixes links in posts. Renaming or moving a folder renames its directory. Works only with Global Shared Folders.', 'folderify'); ?></span>
+                            </div>
+                            <label class="folderify-setting-toggle">
+                                <input type="checkbox" name="folderify_settings[physical_folders]" value="1" <?php checked(1, !empty($options['physical_folders'])); ?> />
+                                <span class="folderify-setting-toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
 
                     <?php if ( true ) : ?>
                     <div class="folderify-card">
@@ -471,6 +501,72 @@ class Settings
                         <div id="folderify-import-csv-status" style="display:none;margin-top:10px;"></div>
                     </div>
                 </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- ── Tab: Uploads sync ── -->
+            <div class="folderify-panel <?php echo $active === 'sync' ? 'active' : ''; ?>" id="tab-sync">
+                <?php if (!Physical_Storage::is_global_mode()): ?>
+                    <div class="folderify-card">
+                        <div class="folderify-ie-block">
+                            <p class="folderify-ie-title"><?php esc_html_e('Not available in private mode', 'folderify'); ?></p>
+                            <p class="folderify-ie-desc">
+                                <?php esc_html_e('Uploads sync needs "Global Shared Folders" mode, because private per-user folders cannot be mirrored as real directories.', 'folderify'); ?>
+                            </p>
+                        </div>
+                    </div>
+                <?php else: ?>
+
+                    <div class="folderify-card" id="folderify-sync-scan">
+                        <div class="folderify-card-head">
+                            <p class="folderify-card-title"><?php esc_html_e('Scan uploads → Folderify', 'folderify'); ?></p>
+                            <p class="folderify-card-desc">
+                                <?php esc_html_e('Found files and folders you copied into wp-content/uploads (FTP, file manager)? Scan the directory: new files are added to the Media Library, every directory becomes a folder (nested like on disk) and files are assigned to it.', 'folderify'); ?>
+                            </p>
+                        </div>
+                        <div class="folderify-ie-block">
+                            <label class="folderify-radio-label" style="margin-bottom:10px;">
+                                <input type="checkbox" class="folderify-sync-date-dirs" />
+                                <?php esc_html_e('Also turn WordPress year/month directories (2025/03) into folders', 'folderify'); ?>
+                            </label>
+                            <div class="folderify-ie-actions">
+                                <button type="button" class="button button-primary folderify-sync-analyze" data-mode="scan">
+                                    <?php esc_html_e('Scan uploads', 'folderify'); ?>
+                                </button>
+                            </div>
+                            <div class="folderify-sync-result" style="display:none;"></div>
+                        </div>
+                    </div>
+
+                    <div class="folderify-card" id="folderify-sync-apply">
+                        <div class="folderify-card-head">
+                            <p class="folderify-card-title"><?php esc_html_e('Folderify → disk', 'folderify'); ?></p>
+                            <p class="folderify-card-desc">
+                                <?php esc_html_e('Already organised your media in Folderify before turning on real folders? This creates the directories and moves every categorised file (with thumbnails) into the directory of its folder.', 'folderify'); ?>
+                            </p>
+                        </div>
+                        <div class="folderify-ie-block">
+                            <?php if (!Physical_Storage::enabled()): ?>
+                                <p class="folderify-ie-desc" style="color:#b32d2e;">
+                                    <?php esc_html_e('Enable "Store media in real folders" in the General tab and save first.', 'folderify'); ?>
+                                </p>
+                            <?php endif; ?>
+                            <label class="folderify-radio-label" style="margin-bottom:10px;">
+                                <input type="checkbox" class="folderify-sync-replace-urls" checked />
+                                <?php esc_html_e('Update links to moved files inside posts and pages', 'folderify'); ?>
+                            </label>
+                            <div class="folderify-ie-actions">
+                                <button type="button" class="button button-primary folderify-sync-analyze" data-mode="apply" <?php disabled(!Physical_Storage::enabled()); ?>>
+                                    <?php esc_html_e('Analyze', 'folderify'); ?>
+                                </button>
+                            </div>
+                            <div class="folderify-sync-result" style="display:none;"></div>
+                        </div>
+                    </div>
+
+                    <p style="font-size:12px;color:#8c8f94;margin:4px 2px 0;">
+                        <?php esc_html_e('Tip: make a full backup (database + uploads) before the first big sync. Moving files changes their URLs; links inside posts are updated, but links on other websites will break.', 'folderify'); ?>
+                    </p>
                 <?php endif; ?>
             </div>
 

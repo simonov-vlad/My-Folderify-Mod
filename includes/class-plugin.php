@@ -34,6 +34,11 @@ class Plugin
     public $settings;
 
     /**
+     * @var Physical_Storage
+     */
+    public $physical_storage;
+
+    /**
      * Get the instance.
      *
      * @return Plugin
@@ -70,7 +75,13 @@ class Plugin
         // Instantiate instances
         $this->database = new Database();
 
+        // Mirrors folders as real directories inside wp-content/uploads.
+        $this->physical_storage = new Physical_Storage();
+
         $this->folder_manager = new Folder_Manager();
+
+        // Scan uploads and sync with the folder tree (admin AJAX).
+        new Uploads_Sync($this->folder_manager, $this->physical_storage);
 
         // APIs
         new REST($this->folder_manager);

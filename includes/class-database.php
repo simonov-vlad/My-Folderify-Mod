@@ -59,6 +59,12 @@ class Database
             Permissions::install_default_capabilities();
             update_option('folderify_schema_version', '1.3');
         }
+
+        $current = get_option('folderify_schema_version', '0');
+        if (version_compare($current, '1.4', '<')) {
+            self::create_tables(); // Add slug column (real directory name of the folder)
+            update_option('folderify_schema_version', '1.4');
+        }
     }
 
     /**
@@ -80,6 +86,7 @@ class Database
 			owner_user_id bigint(20) unsigned DEFAULT NULL,
 			post_type varchar(50) NOT NULL DEFAULT 'attachment',
 			name varchar(255) NOT NULL,
+			slug varchar(255) NOT NULL DEFAULT '',
 			parent_id bigint(20) unsigned NOT NULL DEFAULT 0,
 			color varchar(20) DEFAULT '',
 			order_index int(11) NOT NULL DEFAULT 0,
@@ -119,6 +126,7 @@ class Database
             'enable_multiple_folders' => 1,
             'show_breadcrumb' => 1,
             'delete_on_uninstall' => 0,
+            'physical_folders' => 1,
             'admin_override' => 1,
             'folderify_folder_mode' => 'global',
             'folderify_private_allowed_roles' => ['administrator'],

@@ -20,6 +20,25 @@ class Folder_Manager
     }
 
     /**
+     * Physical storage service (mirrors folders as directories in uploads).
+     *
+     * @return Physical_Storage
+     */
+    private function storage()
+    {
+        return Plugin::get_instance()->physical_storage;
+    }
+
+    /**
+     * Is this folder an attachment (media library) folder?
+     */
+    private function is_media_folder($folder_id)
+    {
+        $folder = $this->get_folder($folder_id);
+        return $folder && ($folder['post_type'] ?? 'attachment') === 'attachment';
+    }
+
+    /**
      * Get table names.
      */
     private static function get_tables()
@@ -148,6 +167,9 @@ class Folder_Manager
         $mode = $settings['folderify_folder_mode'] ?? 'global';
         $user_id = ($mode === 'private') ? (int) get_current_user_id() : 0;
 
+        // Directory name for this folder on disk (unique among siblings).
+        $slug = ($post_type === 'attachment') ? $this->storage()->make_unique_slug($name, $parent_id) : '';
+
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
         $inserted = $wpdb->insert(
             $tables['folders'],
@@ -155,6 +177,7 @@ class Folder_Manager
                 'user_id' => $user_id,
                 'post_type' => $post_type,
                 'name' => $name,
+                'slug' => $slug,
                 'parent_id' => $parent_id,
                 'color' => $color,
                 'order_index' => $order,
@@ -162,8 +185,13 @@ class Folder_Manager
         );
 
         if ($inserted) {
+            $new_id = $wpdb->insert_id;
+            Physical_Storage::reset_cache();
+            if ($post_type === 'attachment') {
+                $this->storage()->ensure_directory($new_id);
+            }
             $this->invalidate_cache();
-            return $wpdb->insert_id;
+            return $new_id;
         }
 
         return new \WP_Error('insert_failed', __('Could not insert folder.', 'folderify'));
@@ -227,6 +255,10 @@ class Folder_Manager
             return true; // Nothing to update
         }
 
+        // Remember where the directory is now, so it can follow the rename / move.
+        $path_changes = isset($update_data['name']) || isset($update_data['parent_id']);
+        $old_path = ($path_changes && $this->is_media_folder($id)) ? $this->storage()->snapshot_path($id) : null;
+
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $updated = $wpdb->update(
             $tables['folders'],
@@ -237,6 +269,9 @@ class Folder_Manager
         );
 
         if (false !== $updated) {
+            if ($old_path !== null) {
+                $this->storage()->sync_folder_path($id, $old_path, isset($update_data['name']));
+            }
             $this->invalidate_cache();
             return true;
         }
@@ -306,6 +341,9 @@ class Folder_Manager
 
         $children_ids = array_column($children, 'id');
 
+        // Remember the current directory so it can follow the move.
+        $old_path = ($original_folder['post_type'] === 'attachment') ? $this->storage()->snapshot_path($folder_id) : null;
+
         // Splice the folder into the requested position
         array_splice($children_ids, $target_index, 0, [$folder_id]);
 
@@ -319,6 +357,10 @@ class Folder_Manager
                 ['%d', '%d'],
                 ['%d']
             );
+        }
+
+        if ($old_path !== null) {
+            $this->storage()->sync_folder_path($folder_id, $old_path, false);
         }
 
         $this->invalidate_cache();
@@ -367,6 +409,8 @@ class Folder_Manager
             $order_index = $original_folder['order_index'];
         }
 
+        $slug = ($original_folder['post_type'] === 'attachment') ? $this->storage()->make_unique_slug($name, (int) $parent_id) : '';
+
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
         $inserted = $wpdb->insert(
             $tables['folders'],
@@ -374,6 +418,7 @@ class Folder_Manager
                 'user_id' => $original_folder['user_id'],
                 'post_type' => $original_folder['post_type'],
                 'name' => $name,
+                'slug' => $slug,
                 'parent_id' => $parent_id,
                 'color' => $original_folder['color'],
                 'order_index' => $order_index,
@@ -385,6 +430,11 @@ class Folder_Manager
         }
 
         $new_folder_id = $wpdb->insert_id;
+        Physical_Storage::reset_cache();
+        if ($original_folder['post_type'] === 'attachment') {
+            // The copy gets an (empty) directory of its own; files are not duplicated.
+            $this->storage()->ensure_directory($new_folder_id);
+        }
 
         // Fetch children
         $children_sql = $wpdb->prepare("SELECT id FROM {$tables['folders']} WHERE parent_id = %d ORDER BY order_index ASC", $id); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -420,6 +470,9 @@ class Folder_Manager
         $tables = self::get_tables();
         $id = absint($id);
 
+        $is_media = $this->is_media_folder($id);
+        $old_path = $is_media ? $this->storage()->snapshot_path($id) : null;
+
         // We need to re-assign children if not recursive, or delete them if recursive.
         $children_sql = $wpdb->prepare("SELECT id FROM {$tables['folders']} WHERE parent_id = %d", $id); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
         $children = $wpdb->get_col($children_sql); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
@@ -430,7 +483,13 @@ class Folder_Manager
                     $this->delete_folder($child_id, true);
                 }
             } else {
-                // Move children to root
+                // Move children to root (their directories follow).
+                $child_paths = [];
+                if ($is_media) {
+                    foreach ($children as $child_id) {
+                        $child_paths[(int) $child_id] = $this->storage()->snapshot_path((int) $child_id);
+                    }
+                }
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                 $wpdb->update(
                     $tables['folders'],
@@ -439,7 +498,15 @@ class Folder_Manager
                     ['%d'],
                     ['%d']
                 );
+                foreach ($child_paths as $child_id => $child_old_path) {
+                    $this->storage()->sync_folder_path($child_id, $child_old_path, false);
+                }
             }
+        }
+
+        // Send this folder's files back to where they came from (nothing is ever deleted).
+        if ($is_media) {
+            $this->storage()->release_folder_files($id);
         }
 
         // Delete associations
@@ -451,6 +518,11 @@ class Folder_Manager
         $deleted = $wpdb->delete($tables['folders'], ['id' => $id], ['%d']);
 
         if ($deleted) {
+            Physical_Storage::reset_cache();
+            if ($old_path !== null) {
+                // Removes the directory only when it is empty.
+                $this->storage()->remove_directory_if_empty($old_path);
+            }
             $this->invalidate_cache();
             return true;
         }
@@ -502,6 +574,12 @@ class Folder_Manager
                     );
                 }
             }
+        }
+
+        // Physically move the files so the disk follows the folder tree.
+        $storage = $this->storage();
+        foreach ($attachment_ids as $attachment_id) {
+            $storage->apply_assignment($attachment_id, $folder_ids, $append);
         }
 
         return true;
