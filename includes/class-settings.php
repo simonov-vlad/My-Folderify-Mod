@@ -531,6 +531,13 @@ class Settings
                                 <input type="checkbox" class="folderify-sync-date-dirs" />
                                 <?php esc_html_e('Also turn WordPress year/month directories (2025/03) into folders', 'folderify'); ?>
                             </label>
+                            <label class="folderify-radio-label" style="margin-bottom:4px;">
+                                <input type="checkbox" class="folderify-sync-translit" />
+                                <?php esc_html_e('Transliterate Russian file and folder names to Latin', 'folderify'); ?>
+                            </label>
+                            <p class="folderify-ie-desc" style="margin:0 0 12px 26px;">
+                                <?php esc_html_e('Only the names on disk (and in URLs) change, e.g. "Ворота (1).webp" becomes "Vorota-1.webp". Titles in the Media Library and folder names in Folderify stay Russian. Links inside posts are updated. Files that were added earlier with Russian names are renamed too, so make a backup first.', 'folderify'); ?>
+                            </p>
                             <div class="folderify-ie-actions">
                                 <button type="button" class="button button-primary folderify-sync-analyze" data-mode="scan">
                                     <?php esc_html_e('Scan uploads', 'folderify'); ?>
@@ -546,6 +553,12 @@ class Settings
                                         <li><strong><?php echo (int) $d['registered']; ?></strong> <?php esc_html_e('files added to the Media Library', 'folderify'); ?></li>
                                         <li><strong><?php echo (int) $d['folders']; ?></strong> <?php esc_html_e('folders created', 'folderify'); ?></li>
                                         <li><strong><?php echo (int) $d['linked']; ?></strong> <?php esc_html_e('files linked to folders', 'folderify'); ?></li>
+                                        <?php if (!empty($d['renamed'])): ?>
+                                            <li><strong><?php echo (int) $d['renamed']; ?></strong> <?php esc_html_e('files renamed to Latin', 'folderify'); ?></li>
+                                        <?php endif; ?>
+                                        <?php if (!empty($d['renamed_dirs'])): ?>
+                                            <li><strong><?php echo (int) $d['renamed_dirs']; ?></strong> <?php esc_html_e('directories renamed to Latin', 'folderify'); ?></li>
+                                        <?php endif; ?>
                                     </ul>
                                 <?php endif; ?>
                             </div>

@@ -389,8 +389,13 @@ class Physical_Storage
 
         $current_rel_dir = dirname($rel_file);
         $current_rel_dir = ($current_rel_dir === '.') ? '' : trim($current_rel_dir, '/');
-        if ($current_rel_dir === $target_rel_dir) {
-            return true; // already there
+
+        $main_name = wp_basename($rel_file);
+        // Optional: give the main file a new name while moving (or in place).
+        $desired_main = (!empty($args['new_main'])) ? wp_basename($args['new_main']) : $main_name;
+        $same_place = ($current_rel_dir === $target_rel_dir);
+        if ($same_place && $desired_main === $main_name) {
+            return true; // already there, nothing to rename
         }
 
         $basedir = self::basedir();
@@ -398,7 +403,6 @@ class Physical_Storage
         $old_abs_dir = $basedir . ($current_rel_dir !== '' ? '/' . $current_rel_dir : '');
         $new_abs_dir = $basedir . ($target_rel_dir !== '' ? '/' . $target_rel_dir : '');
 
-        $main_name = wp_basename($rel_file);
         if (!file_exists($old_abs_dir . '/' . $main_name)) {
             return new \WP_Error('missing', __('The file does not exist on disk.', 'folderify'));
         }
@@ -436,8 +440,9 @@ class Physical_Storage
         $old_stem = $main_info['filename'];
         $new_stem = $old_stem;
 
-        if (file_exists($new_abs_dir . '/' . $main_name)) {
-            $unique = wp_unique_filename($new_abs_dir, $main_name);
+        $new_stem = pathinfo($desired_main, PATHINFO_FILENAME);
+        if (file_exists($new_abs_dir . '/' . $desired_main) && !($same_place && $desired_main === $main_name)) {
+            $unique = wp_unique_filename($new_abs_dir, $desired_main);
             $new_stem = pathinfo($unique, PATHINFO_FILENAME);
         }
         foreach ($files as $f) {
@@ -452,6 +457,9 @@ class Physical_Storage
         foreach ($rename_map as $old => $new) {
             if (!file_exists($old_abs_dir . '/' . $old)) {
                 continue;
+            }
+            if ($same_place && $old === $new) {
+                continue; // stays where it is
             }
             if (file_exists($new_abs_dir . '/' . $new)) {
                 return new \WP_Error('clash', sprintf(
@@ -470,6 +478,9 @@ class Physical_Storage
             if (!file_exists($from)) {
                 continue;
             }
+            if ($same_place && $old === $new) {
+                continue;
+            }
             $to = $new_abs_dir . '/' . $new;
             if (!$this->move_file($from, $to)) {
                 foreach (array_reverse($moved, true) as $back_from => $back_to) {
@@ -486,7 +497,7 @@ class Physical_Storage
         }
 
         // 5. Remember where the file originally lived (first move only).
-        if (get_post_meta($attachment_id, self::META_ORIGINAL_DIR, true) === '') {
+        if (!$same_place && get_post_meta($attachment_id, self::META_ORIGINAL_DIR, true) === '') {
             update_post_meta($attachment_id, self::META_ORIGINAL_DIR, $current_rel_dir === '' ? '/' : $current_rel_dir);
         }
 
@@ -543,6 +554,26 @@ class Physical_Storage
     }
 
     /**
+     * Rename an attachment's files in place (main file, every thumbnail, original image, backups),
+     * update the database and every link to it in posts. The title is left untouched.
+     *
+     * @param int    $attachment_id
+     * @param string $new_main_basename New file name of the main file, e.g. "vorota-1.webp".
+     * @param bool   $replace_urls
+     * @return true|\WP_Error
+     */
+    public function rename_attachment_file($attachment_id, $new_main_basename, $replace_urls = true)
+    {
+        $rel = get_post_meta((int) $attachment_id, '_wp_attached_file', true);
+        if (!$rel || !is_string($rel)) {
+            return new \WP_Error('no_file', __('Attachment has no file.', 'folderify'));
+        }
+        $dir = dirname(ltrim(wp_normalize_path($rel), '/'));
+        $dir = ($dir === '.') ? '' : $dir;
+        return $this->relocate((int) $attachment_id, $dir, ['new_main' => $new_main_basename, 'replace_urls' => $replace_urls]);
+    }
+
+    /**
      * Rename within a file system, falling back to copy + delete across devices.
      */
     private function move_file($from, $to)
@@ -561,7 +592,48 @@ class Physical_Storage
     }
 
     /**
+     * Path part of a URL ("http://host/wp-content/uploads/a b.jpg" -> "/wp-content/uploads/a b.jpg").
+     */
+    private function url_path($url)
+    {
+        return preg_replace('#^[a-z][a-z0-9+.-]*://[^/]+#i', '', (string) $url);
+    }
+
+    /**
+     * Every way a path can appear in stored content: as is, with %20, fully percent-encoded
+     * (with and without encoded brackets), each of those with JSON-escaped slashes, and as a
+     * default JSON string with \uXXXX escapes (page builders such as Elementor).
+     *
+     * @return string[]
+     */
+    private function path_variants($path)
+    {
+        $encode = function ($p) {
+            return implode('/', array_map('rawurlencode', explode('/', $p)));
+        };
+        $enc = $encode($path);
+        $base = [
+            $path,
+            str_replace(' ', '%20', $path),
+            $enc,
+            str_replace(['%28', '%29', '%21', '%27', '%2A'], ['(', ')', '!', "'", '*'], $enc),
+        ];
+        // Fixed length and order on purpose: old and new lists are paired by index.
+        $out = [];
+        foreach ($base as $v) {
+            $out[] = $v;
+            $out[] = str_replace('/', '\\/', $v);
+        }
+        // Default JSON encoding: "\/" for slashes and "\u0412" for Cyrillic (Elementor and friends).
+        $json = wp_json_encode($path);
+        $out[] = is_string($json) ? trim($json, '"') : $path;
+        return $out;
+    }
+
+    /**
      * Replace URLs in post content and (non-serialized) post meta.
+     *
+     * Works on the path part only, so http/https, www or relative links are all caught.
      *
      * @param array  $pairs  old_url => new_url
      * @param string $needle Common URL prefix used to pre-filter rows with LIKE.
@@ -572,17 +644,39 @@ class Physical_Storage
         if (empty($pairs)) {
             return;
         }
-        $like = '%' . $wpdb->esc_like($needle) . '%';
 
-        // Post content (and excerpts).
-        $rows = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-            "SELECT ID, post_content, post_excerpt FROM {$wpdb->posts} WHERE post_type != 'attachment' AND post_status != 'auto-draft' AND (post_content LIKE %s OR post_excerpt LIKE %s)",
-            $like,
-            $like
+        // Expand every pair into all the spellings it can have in the database.
+        $map = [];
+        foreach ($pairs as $old => $new) {
+            $old_vars = $this->path_variants($this->url_path($old));
+            $new_vars = $this->path_variants($this->url_path($new));
+            foreach ($old_vars as $i => $ov) {
+                // First spelling wins: when several variants of the old path are identical
+                // (plain ASCII), the link keeps the same style as before.
+                if (isset($new_vars[$i]) && $ov !== $new_vars[$i] && !isset($map[$ov])) {
+                    $map[$ov] = $new_vars[$i];
+                }
+            }
+        }
+        if (empty($map)) {
+            return;
+        }
+
+        // LIKE pre-filter: one pattern per spelling of the needle.
+        $likes = [];
+        foreach (array_unique($this->path_variants($this->url_path($needle))) as $v) {
+            $likes[] = '%' . $wpdb->esc_like($v) . '%';
+        }
+
+        $cond_content = implode(' OR ', array_fill(0, count($likes), 'post_content LIKE %s'));
+        $cond_excerpt = implode(' OR ', array_fill(0, count($likes), 'post_excerpt LIKE %s'));
+        $rows = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            "SELECT ID, post_content, post_excerpt FROM {$wpdb->posts} WHERE post_type != 'attachment' AND post_status != 'auto-draft' AND ({$cond_content} OR {$cond_excerpt})",
+            array_merge($likes, $likes)
         ), ARRAY_A);
         foreach ((array) $rows as $row) {
-            $content = strtr($row['post_content'], $pairs);
-            $excerpt = strtr($row['post_excerpt'], $pairs);
+            $content = strtr($row['post_content'], $map);
+            $excerpt = strtr($row['post_excerpt'], $map);
             if ($content !== $row['post_content'] || $excerpt !== $row['post_excerpt']) {
                 $wpdb->update($wpdb->posts, ['post_content' => $content, 'post_excerpt' => $excerpt], ['ID' => (int) $row['ID']], ['%s', '%s'], ['%d']); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                 clean_post_cache((int) $row['ID']);
@@ -592,15 +686,16 @@ class Physical_Storage
         // Post meta (page builders keep JSON there). Serialized values are skipped on purpose:
         // a plain string replace would corrupt their length prefixes.
         if (apply_filters('folderify_update_postmeta_urls', true)) {
-            $metas = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $cond_meta = implode(' OR ', array_fill(0, count($likes), 'meta_value LIKE %s'));
+            $metas = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                 "SELECT meta_id, meta_value FROM {$wpdb->postmeta}
                  WHERE meta_key NOT IN ('_wp_attached_file','_wp_attachment_metadata','_wp_attachment_backup_sizes')
-                   AND meta_value LIKE %s
+                   AND ({$cond_meta})
                    AND meta_value NOT LIKE 'a:%%' AND meta_value NOT LIKE 'O:%%' AND meta_value NOT LIKE 's:%%'",
-                $like
+                $likes
             ), ARRAY_A);
             foreach ((array) $metas as $m) {
-                $new_value = strtr($m['meta_value'], $pairs);
+                $new_value = strtr($m['meta_value'], $map);
                 if ($new_value !== $m['meta_value']) {
                     $wpdb->update($wpdb->postmeta, ['meta_value' => $new_value], ['meta_id' => (int) $m['meta_id']], ['%s'], ['%d']); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
                 }

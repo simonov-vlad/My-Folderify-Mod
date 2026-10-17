@@ -74,6 +74,7 @@ Your media files are untouched. Folder assignments are stored separately and can
 * New: real folders on disk. Folders are mirrored as directories in wp-content/uploads; uploads go straight into the active folder, assigning media moves files (with thumbnails) and updates links in posts, renaming/moving a folder renames its directory.
 * New: "Uploads sync" tab. Scan uploads to add unknown files to the Media Library and build the folder tree from directories, or push the existing folder tree to disk. Works in batches with a progress bar.
 * New: `slug` column in the folders table (the real directory name).
+* New: optional transliteration of Russian file and folder names when scanning uploads. Only names on disk change; attachment titles and folder names stay Russian, and links in posts and page-builder JSON are updated.
 
 = 2.0 --- 24 May, 2026 =
 * Major Update: All Pro features are now 100% FREE and included in the core plugin!

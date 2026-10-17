@@ -73,6 +73,10 @@
                     newFiles: '<?php echo esc_js(__('new files to add to the Media Library', 'folderify')); ?>',
                     newFolders: '<?php echo esc_js(__('new folders to create', 'folderify')); ?>',
                     linkFiles: '<?php echo esc_js(__('existing files to link to folders', 'folderify')); ?>',
+                    renameDirs: '<?php echo esc_js(__('folders will be renamed to Latin on disk (display names stay Russian)', 'folderify')); ?>',
+                    renameFiles: '<?php echo esc_js(__('files will be renamed to Latin (titles stay Russian, links in posts are updated)', 'folderify')); ?>',
+                    renamedFiles: '<?php echo esc_js(__('files renamed to Latin', 'folderify')); ?>',
+                    renamedDirs: '<?php echo esc_js(__('directories renamed to Latin', 'folderify')); ?>',
                     toMove: '<?php echo esc_js(__('files to move into their folder directories', 'folderify')); ?>',
                     dirsCheck: '<?php echo esc_js(__('folder directories to check', 'folderify')); ?>',
                     registered: '<?php echo esc_js(__('files added to the Media Library', 'folderify')); ?>',
@@ -101,7 +105,8 @@
                 function doneList(d) {
                     var h = '<ul class="folderify-sync-list">'
                         + li(d.registered, T.registered) + li(d.folders, T.createdFolders)
-                        + li(d.linked, T.linked) + li(d.moved, T.moved) + '</ul>';
+                        + li(d.linked, T.linked) + li(d.renamed, T.renamedFiles) + li(d.renamed_dirs, T.renamedDirs)
+                        + li(d.moved, T.moved) + '</ul>';
                     if (d.errors && d.errors.length) {
                         h += '<details class="folderify-sync-errors" open><summary>' + d.errors.length + ' ' + esc(T.errors) + '</summary><ul>';
                         $.each(d.errors, function (i, e) { h += '<li>' + esc(e) + '</li>'; });
@@ -142,6 +147,7 @@
                         nonce: nonce,
                         mode: mode,
                         include_date_dirs: $card.find('.folderify-sync-date-dirs').is(':checked') ? 1 : 0,
+                        transliterate: $card.find('.folderify-sync-translit').is(':checked') ? 1 : 0,
                         replace_urls: $card.find('.folderify-sync-replace-urls').length
                             ? ($card.find('.folderify-sync-replace-urls').is(':checked') ? 1 : 0) : 1
                     }, function (r) {
@@ -154,7 +160,8 @@
                                 + ', <strong>' + s.files_found + '</strong> ' + esc(T.filesWord) + '</p>'
                                 + '<ul class="folderify-sync-list muted">' + li(s.already_in_library, T.inLibrary)
                                 + li(s.skipped_generated, T.skippedGen) + li(s.skipped_unsupported, T.skippedType) + '</ul>';
-                            todo = li(s.new_files, T.newFiles) + li(s.new_folders, T.newFolders) + li(s.link_files, T.linkFiles);
+                            todo = li(s.new_files, T.newFiles) + li(s.new_folders, T.newFolders) + li(s.link_files, T.linkFiles)
+                                + li(s.rename_dirs, T.renameDirs) + li(s.rename_files, T.renameFiles);
                         } else {
                             todo = li(s.folders, T.dirsCheck) + li(s.to_move, T.toMove);
                         }

@@ -34,6 +34,20 @@ class Uploads_Sync
     /** @var array<string,int> relative dir => folder id (per request) */
     private $dir_cache = [];
 
+    /** @var bool Transliterate Cyrillic names of files and directories (option of the current job). */
+    private $translit = false;
+
+    /**
+     * Original relative directory => directory it has on disk NOW (after renames).
+     * Kept in the job so it survives between AJAX batches.
+     *
+     * @var array<string,string>
+     */
+    private $map = [];
+
+    /** @var int Directories renamed since the counter was last read. */
+    private $renamed_dirs = 0;
+
     public function __construct($folder_manager, $storage)
     {
         $this->folders = $folder_manager;
@@ -118,6 +132,7 @@ class Uploads_Sync
         $opts = [
             'include_date_dirs' => !empty($_POST['include_date_dirs']),
             'replace_urls' => !isset($_POST['replace_urls']) || !empty($_POST['replace_urls']),
+            'transliterate' => !empty($_POST['transliterate']),
         ];
         // phpcs:enable WordPress.Security.NonceVerification.Missing
 
@@ -138,8 +153,9 @@ class Uploads_Sync
         $job['opts'] = $opts;
         $job['pos'] = 0;
         $job['total'] = count($tasks);
+        $job['map'] = [];
         $job['done'] = [
-            'registered' => 0, 'linked' => 0, 'folders' => 0, 'moved' => 0, 'skipped' => 0, 'errors' => [],
+            'registered' => 0, 'linked' => 0, 'folders' => 0, 'moved' => 0, 'renamed' => 0, 'renamed_dirs' => 0, 'skipped' => 0, 'errors' => [],
         ];
         set_transient($this->job_key(), $job, HOUR_IN_SECONDS);
 
@@ -178,6 +194,8 @@ class Uploads_Sync
         $n = 0;
 
         $this->storage->reset_cache();
+        $this->translit = !empty($job['opts']['transliterate']);
+        $this->map = isset($job['map']) && is_array($job['map']) ? $job['map'] : [];
 
         while ($job['pos'] < $total && $n < $max_per_batch && (microtime(true) - $started) < self::BATCH_SECONDS) {
             $task = $tasks[$job['pos']];
@@ -185,6 +203,7 @@ class Uploads_Sync
             $job['pos']++;
             $n++;
         }
+        $job['map'] = $this->map;
 
         $finished = ($job['pos'] >= $total);
         $finished_at = '';
@@ -392,6 +411,9 @@ class Uploads_Sync
         $existing_folder_paths = $this->existing_folder_paths();
         $linked_ids = $this->linked_attachment_ids();
         $new_folders = 0;
+        $translit = !empty($opts['transliterate']);
+        $rename_dirs = 0;
+        $rename_files = 0;
 
         // Directories that become folders (a task only for those that have no folder yet).
         foreach ($walk['dirs'] as $dir) {
@@ -399,9 +421,16 @@ class Uploads_Sync
                 continue;
             }
             $folder_dirs[$dir] = true;
-            if (!isset($existing_folder_paths[mb_strtolower($dir)])) {
+            $exists = isset($existing_folder_paths[mb_strtolower($dir)]);
+            $needs_rename = $translit && Translit::needs(wp_basename($dir));
+            if (!$exists || $needs_rename) {
                 $tasks[] = ['t' => 'dir', 'd' => $dir];
+            }
+            if (!$exists) {
                 $new_folders++;
+            }
+            if ($needs_rename) {
+                $rename_dirs++;
             }
         }
 
@@ -423,6 +452,10 @@ class Uploads_Sync
                     $tasks[] = ['t' => 'link', 'id' => $known['main'][$rel], 'd' => $dir];
                     $link_files++;
                 }
+                if ($translit && Translit::needs($base)) {
+                    $tasks[] = ['t' => 'rename', 'id' => $known['main'][$rel]];
+                    $rename_files++;
+                }
                 continue;
             }
             if (isset($known['derived'][$rel]) || $this->looks_generated($rel, $all_files_set)) {
@@ -437,11 +470,14 @@ class Uploads_Sync
             }
             $tasks[] = ['t' => 'file', 'f' => $rel, 'd' => isset($folder_dirs[$dir]) ? $dir : ''];
             $new_files++;
+            if ($translit && Translit::needs($base)) {
+                $rename_files++;
+            }
         }
 
         // Folders first (shallow before deep), then files — keeps parents ahead of children.
         usort($tasks, function ($a, $b) {
-            $order = ['dir' => 0, 'link' => 1, 'file' => 2];
+            $order = ['dir' => 0, 'link' => 1, 'rename' => 2, 'file' => 3];
             if ($a['t'] === 'dir' && $b['t'] === 'dir') {
                 return substr_count($a['d'], '/') <=> substr_count($b['d'], '/');
             }
@@ -462,6 +498,8 @@ class Uploads_Sync
                 'already_in_library' => $stats['known'],
                 'skipped_generated' => $stats['generated'],
                 'skipped_unsupported' => $stats['unsupported'],
+                'rename_dirs' => $rename_dirs,
+                'rename_files' => $rename_files,
             ],
         ];
     }
@@ -572,6 +610,21 @@ class Uploads_Sync
                     }
                     break;
 
+                case 'rename':
+                    $id = (int) $task['id'];
+                    $file = (string) get_post_meta($id, '_wp_attached_file', true);
+                    $base = wp_basename($file);
+                    if ($file === '' || !Translit::needs($base)) {
+                        break; // already Latin (renamed before)
+                    }
+                    $res = $this->storage->rename_attachment_file($id, Translit::filename($base), !isset($job['opts']['replace_urls']) || !empty($job['opts']['replace_urls']));
+                    if (is_wp_error($res)) {
+                        $job['done']['errors'][] = $file . ': ' . $res->get_error_message();
+                    } else {
+                        $job['done']['renamed']++;
+                    }
+                    break;
+
                 case 'link':
                     $fid = $this->ensure_folder_for_dir($task['d'], $created);
                     if ($fid > 0) {
@@ -581,7 +634,24 @@ class Uploads_Sync
                     break;
 
                 case 'file':
-                    $id = $this->register_file($task['f']);
+                    // Directories may have been renamed already: work with their current name.
+                    $orig_dir = dirname($task['f']);
+                    $dir_now = $this->mapped_dir($orig_dir === '.' ? '' : $orig_dir);
+                    $orig_base = wp_basename($task['f']);
+                    $rel_now = ($dir_now !== '' ? $dir_now . '/' : '') . $orig_base;
+
+                    if ($this->translit && Translit::needs($orig_base)) {
+                        $new_base = $this->rename_file_on_disk($dir_now, $orig_base);
+                        if (is_wp_error($new_base)) {
+                            $job['done']['errors'][] = $task['f'] . ': ' . $new_base->get_error_message();
+                            break;
+                        }
+                        $rel_now = ($dir_now !== '' ? $dir_now . '/' : '') . $new_base;
+                        $job['done']['renamed']++;
+                    }
+
+                    // The title keeps the ORIGINAL (Russian) name.
+                    $id = $this->register_file($rel_now, $orig_base);
                     if (is_wp_error($id)) {
                         $detail = $id->get_error_data();
                         $job['done']['errors'][] = $task['f'] . ': ' . $id->get_error_message()
@@ -617,15 +687,46 @@ class Uploads_Sync
             $job['done']['errors'][] = wp_json_encode($task) . ': ' . $e->getMessage();
         }
 
+        if ($this->renamed_dirs > 0) {
+            $job['done']['renamed_dirs'] += $this->renamed_dirs;
+            $this->renamed_dirs = 0;
+        }
+
         if (count($job['done']['errors']) > 50) {
             $job['done']['errors'] = array_slice($job['done']['errors'], -50);
         }
     }
 
     /**
+     * Where a (relative) directory is on disk right now, after the renames done so far.
+     */
+    private function mapped_dir($dir)
+    {
+        $dir = trim((string) $dir, '/');
+        if ($dir === '') {
+            return '';
+        }
+        $mapped = '';
+        $built = '';
+        foreach (explode('/', $dir) as $segment) {
+            $built = ($built === '') ? $segment : $built . '/' . $segment;
+            if (isset($this->map[$built])) {
+                $mapped = $this->map[$built];
+            } else {
+                $mapped = ($mapped === '') ? $segment : $mapped . '/' . $segment;
+            }
+        }
+        return $mapped;
+    }
+
+    /**
      * Find (or create) the Folderify folder that matches a directory path, creating every missing level.
      *
-     * @param string $dir     Relative directory, e.g. "Photos/Trips".
+     * With transliteration on, a directory with a Russian name is renamed on disk to a Latin one,
+     * while the folder keeps its Russian display name (`name`); only `slug` (the real directory
+     * name) changes.
+     *
+     * @param string $dir     Relative directory as it was when scanned, e.g. "Photos/Trips".
      * @param bool   $created Set to true when at least one folder was created.
      * @return int Folder id or 0.
      */
@@ -644,13 +745,19 @@ class Uploads_Sync
         $table = $wpdb->prefix . 'folderify_folders';
         $parent_id = 0;
         $built = '';
+        $mapped = '';
 
         foreach (explode('/', $dir) as $segment) {
             $built = ($built === '') ? $segment : $built . '/' . $segment;
             if (isset($this->dir_cache[$built])) {
                 $parent_id = $this->dir_cache[$built];
+                $mapped = isset($this->map[$built]) ? $this->map[$built] : (($mapped === '') ? $segment : $mapped . '/' . $segment);
                 continue;
             }
+
+            // Was this directory already handled (and maybe renamed) in an earlier batch?
+            $known = isset($this->map[$built]);
+            $on_disk = $known ? wp_basename($this->map[$built]) : $segment;
 
             // Look for an existing sibling whose directory name equals this segment.
             $existing = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -661,17 +768,28 @@ class Uploads_Sync
             $found = 0;
             foreach ((array) $existing as $f) {
                 $slug = $f['slug'] !== '' ? $f['slug'] : $this->storage->get_slug((int) $f['id']);
-                if (mb_strtolower($slug) === mb_strtolower($segment)) {
+                if (mb_strtolower($slug) === mb_strtolower($on_disk)) {
                     $found = (int) $f['id'];
                     break;
                 }
             }
 
+            if (!$known) {
+                if ($this->translit && Translit::needs($segment)) {
+                    $on_disk = $this->translit_directory($mapped, $segment, $parent_id, $found);
+                }
+                $this->map[$built] = ($mapped === '') ? $on_disk : $mapped . '/' . $on_disk;
+            }
+            $mapped = $this->map[$built];
+
             if ($found === 0) {
-                $found = $this->create_folder_row($segment, $parent_id);
+                $found = $this->create_folder_row($segment, $on_disk, $parent_id);
                 if ($found > 0) {
                     $created = true;
                 }
+            } elseif ($on_disk !== $segment) {
+                // The directory now has a Latin name; the folder keeps its Russian display name.
+                $wpdb->update($table, ['slug' => $on_disk], ['id' => $found], ['%s'], ['%d']); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             }
             if ($found === 0) {
                 return 0;
@@ -686,9 +804,80 @@ class Uploads_Sync
     }
 
     /**
-     * Create a folder row whose directory name is exactly the on-disk name.
+     * Rename a directory on disk to its transliterated name (unique among its siblings) and
+     * let Physical_Storage fix every file path and link below it.
+     *
+     * @param string $mapped_parent Current relative path of the parent directory.
+     * @param string $segment       Current directory name.
+     * @param int    $parent_id     Folderify parent folder.
+     * @param int    $exclude_id    Folderify row of this directory (ignored for the uniqueness check).
+     * @return string Name the directory has afterwards.
      */
-    private function create_folder_row($segment, $parent_id)
+    private function translit_directory($mapped_parent, $segment, $parent_id, $exclude_id)
+    {
+        global $wpdb;
+        $table = $wpdb->prefix . 'folderify_folders';
+
+        $uploads = wp_upload_dir(null, false);
+        $basedir = wp_normalize_path($uploads['basedir']);
+        $parent_abs = $basedir . ($mapped_parent !== '' ? '/' . $mapped_parent : '');
+
+        // Names that are taken: other folders in the database and anything already on disk.
+        $taken = array_map('mb_strtolower', (array) $wpdb->get_col($wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            "SELECT slug FROM {$table} WHERE parent_id = %d AND id != %d AND slug != '' AND post_type = 'attachment'",
+            $parent_id,
+            (int) $exclude_id
+        )));
+        $on_disk = is_dir($parent_abs) ? scandir($parent_abs) : [];
+        foreach ((array) $on_disk as $name) {
+            if ($name !== '.' && $name !== '..') {
+                $taken[] = mb_strtolower($name);
+            }
+        }
+
+        $base = Translit::segment($segment);
+        $candidate = $base;
+        $i = 2;
+        while (in_array(mb_strtolower($candidate), $taken, true)) {
+            $candidate = $base . '-' . $i;
+            $i++;
+        }
+
+        $old_rel = ($mapped_parent !== '' ? $mapped_parent . '/' : '') . $segment;
+        $new_rel = ($mapped_parent !== '' ? $mapped_parent . '/' : '') . $candidate;
+        if (is_dir($basedir . '/' . $old_rel)) {
+            $this->storage->rename_directory($old_rel, $new_rel);
+            $this->renamed_dirs++;
+        }
+        return $candidate;
+    }
+
+    /**
+     * Rename a file inside a directory to its transliterated name (made unique if needed).
+     *
+     * @return string|\WP_Error New file name.
+     */
+    private function rename_file_on_disk($rel_dir, $basename)
+    {
+        $uploads = wp_upload_dir(null, false);
+        $abs_dir = wp_normalize_path($uploads['basedir']) . ($rel_dir !== '' ? '/' . $rel_dir : '');
+
+        $from = $abs_dir . '/' . $basename;
+        if (!is_file($from)) {
+            return new \WP_Error('missing', __('File vanished.', 'folderify'));
+        }
+        $new = wp_unique_filename($abs_dir, Translit::filename($basename));
+        // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.rename_rename
+        if (!@rename($from, $abs_dir . '/' . $new)) {
+            return new \WP_Error('rename_failed', __('Could not rename the file.', 'folderify'));
+        }
+        return $new;
+    }
+
+    /**
+     * Create a folder row: `name` is what people see, `slug` is the real directory name.
+     */
+    private function create_folder_row($name, $slug, $parent_id)
     {
         global $wpdb;
         $table = $wpdb->prefix . 'folderify_folders';
@@ -700,8 +889,8 @@ class Uploads_Sync
             [
                 'user_id' => 0,
                 'post_type' => 'attachment',
-                'name' => sanitize_text_field($segment),
-                'slug' => $segment, // keep the real directory name untouched
+                'name' => sanitize_text_field($name),
+                'slug' => $slug, // keep the real directory name untouched
                 'parent_id' => $parent_id,
                 'color' => '',
                 'order_index' => (int) $max_order + 1,
@@ -748,10 +937,12 @@ class Uploads_Sync
     /**
      * Add a file found in uploads to the Media Library.
      *
-     * @param string $rel Relative path inside uploads.
+     * @param string      $rel          Relative path inside uploads (the file as it is on disk now).
+     * @param string|null $title_source Original file name to build the title from (keeps Russian
+     *                                  titles when the file itself was transliterated).
      * @return int|\WP_Error Attachment id.
      */
-    private function register_file($rel)
+    private function register_file($rel, $title_source = null)
     {
         $uploads = wp_upload_dir(null, false);
         $abs = wp_normalize_path($uploads['basedir']) . '/' . $rel;
@@ -765,7 +956,7 @@ class Uploads_Sync
         }
 
         $mtime = filemtime($abs) ?: time();
-        $title = preg_replace('/\.[^.]+$/', '', wp_basename($abs));
+        $title = preg_replace('/\.[^.]+$/', '', $title_source !== null ? wp_basename($title_source) : wp_basename($abs));
         $title = trim(preg_replace('/[-_]+/', ' ', $title));
 
         $attachment = [
