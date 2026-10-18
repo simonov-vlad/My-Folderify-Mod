@@ -34,6 +34,12 @@ class Media_Replace_Page
         }
         // Do not alter URLs for third-party AJAX handlers (e.g. page builders validate the file extension).
         if (wp_doing_ajax()) {
+            // Page builders (Brizy, Elementor...) call admin-ajax from a front-end page and validate the
+            // file extension of the URL, so a "?v=" suffix breaks them. Only touch real wp-admin screens.
+            $referer = wp_get_referer();
+            if (!$referer || strpos($referer, admin_url()) !== 0) {
+                return $url;
+            }
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
             $action = isset($_REQUEST['action']) ? wp_unslash($_REQUEST['action']) : '';
             if (!in_array($action, ['query-attachments', 'get-attachment', 'save-attachment', 'upload-attachment'], true)) {
