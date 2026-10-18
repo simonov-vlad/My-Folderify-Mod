@@ -91,6 +91,32 @@ body.folderify-active #wpbody-content {
     min-width: 0;
 }
 
+/* Let the folder tree scroll inside the modal when there are many folders.
+   Every flex ancestor needs min-height: 0, otherwise the tree grows with its content
+   and gets clipped instead of showing a scrollbar. */
+.attachments-browser.folderify-active .folderify-flex-container {
+    min-height: 0;
+}
+
+#folderify-modal-root {
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+}
+
+#folderify-modal-root .folderify-sidebar-wrapper,
+#folderify-modal-root .folderify-sidebar-inner {
+    min-height: 0;
+    max-height: 100%;
+}
+
+#folderify-modal-root .folderify-tree {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
 /* Reset any left properties on standard WP elements that may be defined in WP core */
 .attachments-browser.folderify-active .media-toolbar,
 .attachments-browser.folderify-active .attachments,
