@@ -29,11 +29,20 @@ class Media_Replace_Page
      */
     public function admin_cache_buster($url, $post_id)
     {
-        if (is_admin() && !empty($url)) {
-            $modified = get_post_modified_time('U', true, $post_id);
-            if ($modified) {
-                $url = add_query_arg('v', $modified, $url);
+        if (!is_admin() || empty($url)) {
+            return $url;
+        }
+        // Do not alter URLs for third-party AJAX handlers (e.g. page builders validate the file extension).
+        if (wp_doing_ajax()) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+            $action = isset($_REQUEST['action']) ? wp_unslash($_REQUEST['action']) : '';
+            if (!in_array($action, ['query-attachments', 'get-attachment', 'save-attachment', 'upload-attachment'], true)) {
+                return $url;
             }
+        }
+        $modified = get_post_modified_time('U', true, $post_id);
+        if ($modified) {
+            $url = add_query_arg('v', $modified, $url);
         }
         return $url;
     }

@@ -70,8 +70,14 @@ class Query
             $folder_id = wp_unslash($_GET['folderify_folder']);
         }
 
-        // 4. Fallback to user meta if no folder specified (Initial load state)
-        if ($folder_id === false && is_user_logged_in()) {
+        // 4. Fallback to user meta if no folder specified (Initial load state).
+        // Only for the Media Library itself (grid AJAX query or upload.php list view).
+        // Never for other attachment lookups (page builders such as Brizy, REST, themes...),
+        // otherwise e.g. a freshly uploaded file is "not found" because it is not in the last opened folder.
+        $is_library_request = wp_doing_ajax()
+            ? (isset($_REQUEST['action']) && wp_unslash($_REQUEST['action']) === 'query-attachments') // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+            : (is_admin() && isset($GLOBALS['pagenow']) && $GLOBALS['pagenow'] === 'upload.php');
+        if ($folder_id === false && $is_library_request && is_user_logged_in()) {
             $is_premium = true;
             if ($is_premium) {
                 $meta_val = get_user_meta(get_current_user_id(), 'folderify_active_folder', true);
