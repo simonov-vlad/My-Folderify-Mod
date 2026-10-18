@@ -101,7 +101,7 @@ export const FolderProvider = ({ children }) => {
             // Only touch server-backed queries. Local collections (e.g. the gallery
             // editor library) must not be reset, otherwise the selection disappears.
             if (view && view.collection && view.collection.props
-                && wp.media.model.Query && view.collection instanceof wp.media.model.Query) {
+                && (view.collection.props.get('query') || view.collection.mirroring)) {
                 // Force Backbone to refetch even if ID didn't change (e.g., when contents changed via backend)
                 view.collection.props.set({ ignore: (+ new Date()) });
                 view.collection.reset();
@@ -145,7 +145,7 @@ export const FolderProvider = ({ children }) => {
             // Only touch server-backed queries. Local collections (e.g. the gallery
             // editor library) must not be reset, otherwise the selection disappears.
             if (view && view.collection && view.collection.props
-                && wp.media.model.Query && view.collection instanceof wp.media.model.Query) {
+                && (view.collection.props.get('query') || view.collection.mirroring)) {
                 // Determine orderby/order overrides if fileSort is not 'default'
                 let orderOptions = {
                     folderify_folder: activeFolderId,
