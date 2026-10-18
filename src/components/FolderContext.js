@@ -98,7 +98,10 @@ export const FolderProvider = ({ children }) => {
     const refreshGrid = () => {
         if (typeof wp !== 'undefined' && wp.media && wp.media.frame && wp.media.frame.content) {
             const view = wp.media.frame.content.get();
-            if (view && view.collection && view.collection.props) {
+            // Only touch server-backed queries. Local collections (e.g. the gallery
+            // editor library) must not be reset, otherwise the selection disappears.
+            if (view && view.collection && view.collection.props
+                && wp.media.model.Query && view.collection instanceof wp.media.model.Query) {
                 // Force Backbone to refetch even if ID didn't change (e.g., when contents changed via backend)
                 view.collection.props.set({ ignore: (+ new Date()) });
                 view.collection.reset();
@@ -139,7 +142,10 @@ export const FolderProvider = ({ children }) => {
         // 1. Grid View Trigger (Watches activeFolderId and fileSort)
         if (typeof wp !== 'undefined' && wp.media && wp.media.frame && wp.media.frame.content) {
             const view = wp.media.frame.content.get();
-            if (view && view.collection && view.collection.props) {
+            // Only touch server-backed queries. Local collections (e.g. the gallery
+            // editor library) must not be reset, otherwise the selection disappears.
+            if (view && view.collection && view.collection.props
+                && wp.media.model.Query && view.collection instanceof wp.media.model.Query) {
                 // Determine orderby/order overrides if fileSort is not 'default'
                 let orderOptions = {
                     folderify_folder: activeFolderId,
